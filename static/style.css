@@ -130,25 +130,6 @@ body {
     border-color: #3b82f6;
 }
 
-.calibre-desc {
-    position: absolute; inset: 0;
-    background: rgba(15, 23, 42, 0.95);
-    padding: 0.8rem; font-size: 0.75rem; color: #cbd5e1;
-    display: flex; flex-direction: column;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-    overflow-y: auto; text-align: left;
-    z-index: 2; line-height: 1.4;
-}
-.calibre-book:hover .calibre-desc {
-    opacity: 1;
-}
-
-.calibre-desc-title {
-    font-weight: 700; color: #fff; margin-bottom: 0.4rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.2rem;
-}
-
 .calibre-cover {
     width: 100%; aspect-ratio: 2/3; object-fit: cover;
     border-radius: 4px; margin-bottom: 0.6rem;
@@ -166,7 +147,160 @@ body {
     font-size: 0.72rem; color: #94a3b8;
 }
 
+/* ── Book Modal ── */
+.modal-book-layout {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 1rem;
+    align-items: start;
+    text-align: left;
+    margin-bottom: 1rem;
+}
+
+.modal-cover-wrap {
+    display: flex;
+    justify-content: center;
+}
+
+.modal-cover-large {
+    width: 100%;
+    max-width: 140px;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+}
+
+.modal-book-info {
+    min-width: 0;
+}
+
+.modal-format-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.modal-format-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(59,130,246,0.16);
+    border: 1px solid rgba(59,130,246,0.35);
+    color: #bfdbfe;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.modal-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 0.45rem;
+}
+
+.modal-description-box {
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 0.8rem;
+    border-radius: 10px;
+    background: rgba(15,23,42,0.55);
+    border: 1px solid rgba(255,255,255,0.08);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.task-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.task-history-item {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 0.7rem;
+    align-items: start;
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    background: rgba(15,23,42,0.42);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.task-history-time {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    margin-top: 0.1rem;
+}
+
+.task-history-kind {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    color: #cbd5e1;
+}
+
+.task-history-message {
+    color: #e2e8f0;
+    font-size: 0.84rem;
+    line-height: 1.4;
+}
+
+.task-history-item.is-success {
+    border-color: rgba(16,185,129,0.25);
+}
+
+.task-history-item.is-error {
+    border-color: rgba(239,68,68,0.25);
+}
+
+.task-history-item.is-info {
+    border-color: rgba(59,130,246,0.25);
+}
+
+.swal-clear-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-start;
+    margin: 0.25rem 0 0.75rem;
+    font-size: 0.82rem;
+    color: #cbd5e1;
+}
+
+.library-empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #94a3b8;
+}
+
+.library-empty-state strong {
+    display: block;
+    color: #e2e8f0;
+    margin-bottom: 0.35rem;
+}
+
 /* ── Responsive ── */
 @media (max-width: 576px) {
     .calibre-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.8rem; }
+    .modal-book-layout {
+        grid-template-columns: 1fr;
+    }
+    .modal-cover-large {
+        max-width: 160px;
+    }
 }

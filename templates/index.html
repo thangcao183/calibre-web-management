@@ -80,6 +80,18 @@
             </div>
         </div>
 
+        <div class="card glass-card mb-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+                    <span class="small text-secondary">Live updates</span>
+                </div>
+                <div id="task-history-list" class="task-history-list">
+                    <div class="text-secondary text-center py-3">No activity yet.</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Calibre Library -->
         <div class="card glass-card">
             <div class="card-body">
@@ -90,11 +102,32 @@
                     </h5>
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <input type="text" id="calibre-search" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Filter title / author..." oninput="onSearchInput()" style="width:220px;">
+                        <select id="calibre-format-filter" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:120px;" onchange="onFormatFilterChange()">
+                            <option value="">All formats</option>
+                            <option value="epub">EPUB</option>
+                            <option value="kepub">KEPUB</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()" title="Clear active filters">
+                            <i class="bi bi-funnel"></i> Clear
+                        </button>
+                        <span id="active-filter-badge" class="badge text-bg-info" style="display:none;"></span>
+                        <div class="d-flex align-items-center gap-1">
+                            <select id="saved-filter-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:160px;" onchange="applySavedFilter(this.value)">
+                                <option value="">Saved filters</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="saveCurrentFilter()" title="Save current filter">
+                                <i class="bi bi-bookmark-plus"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="deleteSavedFilter()" title="Delete selected filter">
+                                <i class="bi bi-bookmark-x"></i>
+                            </button>
+                        </div>
                         <div class="form-check form-check-inline mb-0">
                             <input class="form-check-input" type="checkbox" id="auto-sync-cb" onchange="toggleAutoSync(this)">
                             <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
                         </div>
-                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub" style="display:none;" onchange="uploadEbook(this)">
+                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub" multiple style="display:none;" onchange="uploadEbook(this)">
                         <button class="btn btn-sm btn-purple" onclick="document.getElementById('upload-ebook-file').click()">
                             <i class="bi bi-plus-lg"></i> Add
                         </button>
@@ -121,15 +154,40 @@
 
     <!-- Book Action Modal (Bootstrap) -->
     <div class="modal fade" id="bookModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content glass-card border-secondary">
                 <div class="modal-header border-secondary">
                     <h6 class="modal-title text-truncate" id="modal-title"></h6>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <p id="modal-author" class="text-secondary small mb-3"></p>
+                    <div class="modal-book-layout">
+                        <div class="modal-cover-wrap">
+                            <img id="modal-cover" class="modal-cover-large" src="/static/placeholder.jpg" alt="">
+                        </div>
+                        <div class="modal-book-info">
+                            <p id="modal-author" class="text-secondary small mb-2"></p>
+                            <div class="small text-start mb-3" id="modal-meta">
+                                <div id="modal-formats" class="modal-format-list"></div>
+                                <div class="text-secondary mt-2" id="modal-path"></div>
+                                <div class="text-secondary mt-2" id="modal-publisher"></div>
+                                <div class="text-secondary mt-1" id="modal-series"></div>
+                                <div class="mt-2" id="modal-tags"></div>
+                                <div class="mt-3">
+                                    <div class="modal-section-label">Description</div>
+                                    <div class="modal-description-box text-light" id="modal-description">Loading metadata...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" id="cover-upload-input" accept="image/*" style="display:none;" onchange="uploadCover(this)">
                     <div class="d-grid gap-2">
+                        <button class="btn btn-outline-secondary" id="btn-change-cover" onclick="document.getElementById('cover-upload-input').click()">
+                            <i class="bi bi-image me-1"></i>Change Cover
+                        </button>
+                        <button class="btn btn-outline-light" id="btn-edit-metadata" onclick="editMetadata()">
+                            <i class="bi bi-pencil-square me-1"></i>Edit Metadata
+                        </button>
                         <button class="btn btn-info" id="btn-read" onclick="window.open('/reader/' + currentBookId, '_blank')">
                             <i class="bi bi-book me-1"></i>Read
                         </button>
@@ -149,6 +207,7 @@
         <div class="container d-flex justify-content-between align-items-center">
             <span class="fw-semibold"><span id="selected-count">0</span> items selected</span>
             <div class="d-flex gap-2">
+                <button class="btn btn-outline-info btn-sm" onclick="bulkEditMetadata()">Bulk Edit</button>
                 <button class="btn btn-outline-light btn-sm" onclick="toggleSelectMode()">Cancel</button>
                 <button class="btn btn-danger btn-sm px-4" onclick="bulkDelete()">Delete Selected</button>
             </div>

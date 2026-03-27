@@ -2,15 +2,23 @@ import os
 import sqlite3
 import json
 import time
-from flask import Blueprint, jsonify, request, send_file, Response, session
+import tempfile
+import subprocess
+from flask import Blueprint, jsonify, request, send_file, Response, session, render_template
+from werkzeug.utils import secure_filename
+from PIL import Image
 from libs.kobo_device import kobo_server
 from libs.scraper_task import ScraperTask
+from libs.text_proc import remove_accents_and_special_chars
 
 # --- Configuration ---
 CALIBRE_LIBRARY_DIR = os.path.expanduser("~/Calibre Library")
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 reader_bp = Blueprint('reader', __name__, url_prefix='/reader')
+
+ALLOWED_UPLOAD_EXTENSIONS = {'.epub', '.kepub', '.kepub.epub'}
+CALIBRE_ADD_TIMEOUT = int(os.getenv("CALIBRE_ADD_TIMEOUT_SECONDS", "120"))
 
 @api_bp.before_request
 def check_login():
@@ -29,6 +37,101 @@ def get_db_connection():
         return None
     return sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
 
+def is_allowed_upload(filename):
+    """Cho phép upload EPUB và các biến thể KEPUB phổ biến."""
+    if not filename:
+        return False
+
+    normalized = filename.lower()
+    return any(normalized.endswith(ext) for ext in ALLOWED_UPLOAD_EXTENSIONS)
+
+def run_calibredb_command(args):
+    """Chạy calibredb với timeout và gom lỗi stdout/stderr."""
+    return subprocess.run(
+        ['calibredb', '--with-library', CALIBRE_LIBRARY_DIR, *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=CALIBRE_ADD_TIMEOUT,
+    )
+
+def update_calibre_metadata(book_id, title=None, author=None, description=None, publisher=None, series=None, tags=None):
+    args = ['set_metadata', str(book_id)]
+    if title is not None:
+        args.extend(['--field', f'title:{title}'])
+    if author is not None:
+        args.extend(['--field', f'authors:{author}'])
+    if description is not None:
+        args.extend(['--field', f'comments:{description}'])
+    if publisher is not None:
+        args.extend(['--field', f'publisher:{publisher}'])
+    if series is not None:
+        args.extend(['--field', f'series:{series}'])
+    if tags is not None:
+        args.extend(['--field', f'tags:{tags}'])
+    return run_calibredb_command(args)
+
+def normalize_book_text(text):
+    return remove_accents_and_special_chars((text or "").lower())
+
+def extract_epub_metadata(file_path):
+    """Đọc metadata cơ bản từ EPUB/KEPUB để phục vụ duplicate detection."""
+    try:
+        from ebooklib import epub
+
+        book = epub.read_epub(file_path)
+        title_items = book.get_metadata('DC', 'title')
+        creator_items = book.get_metadata('DC', 'creator')
+
+        title = title_items[0][0].strip() if title_items and title_items[0][0] else ""
+        author = creator_items[0][0].strip() if creator_items and creator_items[0][0] else ""
+        return {"title": title, "author": author}
+    except Exception:
+        return {"title": "", "author": ""}
+
+def find_duplicate_book(title, author):
+    """Tìm duplicate tiềm năng theo title/author đã chuẩn hóa."""
+    normalized_title = normalize_book_text(title)
+    normalized_author = normalize_book_text(author)
+    if not normalized_title:
+        return None
+
+    conn = get_db_connection()
+    if not conn:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, title, author_sort FROM books')
+        for book_id, existing_title, existing_author in cursor.fetchall():
+            if normalize_book_text(existing_title) != normalized_title:
+                continue
+
+            existing_author_norm = normalize_book_text(existing_author)
+            if not normalized_author or not existing_author_norm:
+                return {"id": book_id, "title": existing_title, "author": existing_author}
+
+            if normalized_author in existing_author_norm or existing_author_norm in normalized_author:
+                return {"id": book_id, "title": existing_title, "author": existing_author}
+    finally:
+        conn.close()
+
+    return None
+
+def get_book_folder_path(book_id):
+    conn = get_db_connection()
+    if not conn:
+        return None
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT path FROM books WHERE id = ?', (book_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return os.path.join(CALIBRE_LIBRARY_DIR, row[0])
+    finally:
+        conn.close()
+
 # --- Library Endpoints ---
 
 @api_bp.route('/calibre_books')
@@ -39,29 +142,36 @@ def api_calibre_books():
     
     try:
         cursor = conn.cursor()
-        # Lấy metadata cơ bản và description (comments)
+        # Payload nhẹ cho grid: chỉ giữ metadata cần để render và filter nhanh ở client
         query = '''
-            SELECT b.id, b.title, b.author_sort, b.path, b.has_cover, c.text
+            SELECT
+                b.id,
+                b.title,
+                b.author_sort,
+                b.path,
+                b.has_cover,
+                COALESCE(df.formats, '')
             FROM books b
-            LEFT JOIN comments c ON b.id = c.book
+            LEFT JOIN (
+                SELECT book, GROUP_CONCAT(LOWER(format)) AS formats
+                FROM data
+                GROUP BY book
+            ) df ON b.id = df.book
             ORDER BY b.timestamp DESC
         '''
         cursor.execute(query)
         books = []
         for row in cursor.fetchall():
-            book_id, title, author, path, has_cover, desc = row
-            
-            # Lấy danh sách định dạng file hiện có
-            cursor.execute('SELECT format FROM data WHERE book = ?', (book_id,))
-            formats = [f[0].lower() for f in cursor.fetchall()]
-            
+            book_id, title, author, path, has_cover, formats_raw = row
+            formats = [fmt for fmt in formats_raw.split(',') if fmt]
+            cover_exists = os.path.exists(os.path.join(CALIBRE_LIBRARY_DIR, path, 'cover.jpg'))
+
             books.append({
                 "id": book_id,
                 "title": title,
                 "author": author,
-                "has_cover": bool(has_cover),
-                "formats": formats,
-                "description": desc or ""
+                "has_cover": bool(has_cover) or cover_exists,
+                "formats": formats
             })
         return jsonify({"success": True, "books": books})
     except Exception as e:
@@ -69,20 +179,86 @@ def api_calibre_books():
     finally:
         conn.close()
 
-@api_bp.route('/calibre/cover/<int:book_id>')
-def api_calibre_cover(book_id):
+@api_bp.route('/calibre/book/<int:book_id>')
+def api_calibre_book_detail(book_id):
     conn = get_db_connection()
-    if not conn: return "Not found", 404
+    if not conn:
+        return jsonify({"success": False, "error": "Calibre library not found"}), 404
+
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT path FROM books WHERE id = ?', (book_id,))
+        query = '''
+            SELECT
+                b.id,
+                b.title,
+                b.author_sort,
+                b.path,
+                b.has_cover,
+                c.text,
+                COALESCE(df.formats, ''),
+                COALESCE(p.name, ''),
+                COALESCE(s.name, ''),
+                COALESCE(tf.tags, '')
+            FROM books b
+            LEFT JOIN comments c ON b.id = c.book
+            LEFT JOIN books_publishers_link bpl ON b.id = bpl.book
+            LEFT JOIN publishers p ON bpl.publisher = p.id
+            LEFT JOIN books_series_link bsl ON b.id = bsl.book
+            LEFT JOIN series s ON bsl.series = s.id
+            LEFT JOIN (
+                SELECT book, GROUP_CONCAT(LOWER(format)) AS formats
+                FROM data
+                GROUP BY book
+            ) df ON b.id = df.book
+            LEFT JOIN (
+                SELECT btl.book, GROUP_CONCAT(t.name, ', ') AS tags
+                FROM books_tags_link btl
+                JOIN tags t ON btl.tag = t.id
+                GROUP BY btl.book
+            ) tf ON b.id = tf.book
+            WHERE b.id = ?
+            LIMIT 1
+        '''
+        cursor.execute(query, (book_id,))
         row = cursor.fetchone()
-        if row:
-            cover_path = os.path.join(CALIBRE_LIBRARY_DIR, row[0], 'cover.jpg')
-            if os.path.exists(cover_path):
-                return send_file(cover_path, mimetype='image/jpeg')
+        if not row:
+            return jsonify({"success": False, "error": "Book not found"}), 404
+
+        book_id, title, author, path, has_cover, desc, formats_raw, publisher, series, tags_raw = row
+        formats = [fmt for fmt in formats_raw.split(',') if fmt]
+        tags = [tag.strip() for tag in tags_raw.split(',') if tag.strip()]
+        cover_exists = os.path.exists(os.path.join(CALIBRE_LIBRARY_DIR, path, 'cover.jpg'))
+
+        return jsonify({
+            "success": True,
+            "book": {
+                "id": book_id,
+                "title": title,
+                "author": author,
+                "path": path,
+                "has_cover": bool(has_cover) or cover_exists,
+                "formats": formats,
+                "description": desc or "",
+                "publisher": publisher or "",
+                "series": series or "",
+                "tags": tags
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+@api_bp.route('/calibre/cover/<int:book_id>')
+def api_calibre_cover(book_id):
+    book_folder = get_book_folder_path(book_id)
+    if not book_folder:
+        return "Not found", 404
+    try:
+        cover_path = os.path.join(book_folder, 'cover.jpg')
+        if os.path.exists(cover_path):
+            return send_file(cover_path, mimetype='image/jpeg')
     except: pass
-    finally: conn.close()
     return "Not found", 404
 
 @api_bp.route('/calibre/epub/<int:book_id>')
@@ -155,8 +331,10 @@ def api_sync_calibre():
             shutil.copy2(source_path, final_path)
             
         kobo_server.books_to_sync.append(final_filename)
+        kobo_server.add_history("sync", "success", f"Queued {final_filename} for Kobo sync")
         return jsonify({"success": True})
     except Exception as e:
+        kobo_server.add_history("sync", "error", str(e))
         return jsonify({"success": False, "error": str(e)})
     finally:
         if conn: conn.close()
@@ -166,10 +344,18 @@ def api_calibre_delete():
     book_id = (request.json or {}).get("book_id")
     if not book_id: return jsonify({"success": False, "error": "Missing ID"})
     try:
-        import subprocess
-        subprocess.run(['calibredb', 'remove', str(book_id)], check=True)
+        run_calibredb_command(['remove', str(book_id)])
+        kobo_server.add_history("delete", "success", f"Deleted book ID {book_id}")
         return jsonify({"success": True})
+    except subprocess.TimeoutExpired:
+        kobo_server.add_history("delete", "error", "Calibre remove timed out")
+        return jsonify({"success": False, "error": "Calibre remove timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        error = (e.stderr or e.stdout or str(e)).strip()
+        kobo_server.add_history("delete", "error", error)
+        return jsonify({"success": False, "error": error}), 500
     except Exception as e:
+        kobo_server.add_history("delete", "error", str(e))
         return jsonify({"success": False, "error": str(e)})
 
 @api_bp.route('/calibre_bulk_delete', methods=['POST'])
@@ -177,11 +363,239 @@ def api_calibre_bulk_delete():
     ids = (request.json or {}).get("book_ids", [])
     if not ids: return jsonify({"success": False, "error": "No IDs"})
     try:
-        import subprocess
-        subprocess.run(['calibredb', 'remove', ",".join(map(str, ids))], check=True)
+        run_calibredb_command(['remove', ",".join(map(str, ids))])
+        kobo_server.add_history("delete", "success", f"Bulk deleted {len(ids)} books")
         return jsonify({"success": True, "count": len(ids)})
+    except subprocess.TimeoutExpired:
+        kobo_server.add_history("delete", "error", "Calibre bulk remove timed out")
+        return jsonify({"success": False, "error": "Calibre bulk remove timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        error = (e.stderr or e.stdout or str(e)).strip()
+        kobo_server.add_history("delete", "error", error)
+        return jsonify({"success": False, "error": error}), 500
     except Exception as e:
+        kobo_server.add_history("delete", "error", str(e))
         return jsonify({"success": False, "error": str(e)})
+
+@api_bp.route('/calibre_update_metadata', methods=['POST'])
+def api_calibre_update_metadata():
+    data = request.json or {}
+    book_id = data.get("book_id")
+    title = (data.get("title") or "").strip()
+    author = (data.get("author") or "").strip()
+    description = (data.get("description") or "").strip()
+    publisher = (data.get("publisher") or "").strip()
+    series = (data.get("series") or "").strip()
+    tags = data.get("tags") or []
+    clear_publisher = bool(data.get("clear_publisher"))
+    clear_series = bool(data.get("clear_series"))
+    clear_tags = bool(data.get("clear_tags"))
+    clear_description = bool(data.get("clear_description"))
+
+    if not book_id:
+        return jsonify({"success": False, "error": "Missing book_id"}), 400
+    if not title:
+        return jsonify({"success": False, "error": "Title is required"}), 400
+
+    tags_value = ",".join(tag.strip() for tag in tags if isinstance(tag, str) and tag.strip())
+
+    try:
+        update_calibre_metadata(
+            book_id,
+            title=title,
+            author=author,
+            description="" if clear_description else description,
+            publisher="" if clear_publisher else publisher,
+            series="" if clear_series else series,
+            tags="" if clear_tags else tags_value
+        )
+        kobo_server.add_history("metadata", "success", f"Updated metadata for book ID {book_id}")
+        return jsonify({"success": True})
+    except subprocess.TimeoutExpired:
+        kobo_server.add_history("metadata", "error", "Metadata update timed out")
+        return jsonify({"success": False, "error": "Metadata update timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        error = (e.stderr or e.stdout or str(e)).strip()
+        kobo_server.add_history("metadata", "error", error)
+        return jsonify({"success": False, "error": error}), 500
+    except Exception as e:
+        kobo_server.add_history("metadata", "error", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@api_bp.route('/calibre_bulk_update_metadata', methods=['POST'])
+def api_calibre_bulk_update_metadata():
+    data = request.json or {}
+    book_ids = data.get("book_ids") or []
+    author = data.get("author")
+    publisher = data.get("publisher")
+    series = data.get("series")
+    tags = data.get("tags") or []
+    description = data.get("description")
+    clear_publisher = bool(data.get("clear_publisher"))
+    clear_series = bool(data.get("clear_series"))
+    clear_tags = bool(data.get("clear_tags"))
+    clear_description = bool(data.get("clear_description"))
+
+    if not book_ids:
+        return jsonify({"success": False, "error": "No book IDs provided"}), 400
+
+    author = author.strip() if isinstance(author, str) else None
+    publisher = publisher.strip() if isinstance(publisher, str) else None
+    series = series.strip() if isinstance(series, str) else None
+    description = description.strip() if isinstance(description, str) else None
+    tags_value = ",".join(tag.strip() for tag in tags if isinstance(tag, str) and tag.strip())
+
+    if not author and not publisher and not series and not tags_value and not description and not clear_publisher and not clear_series and not clear_tags and not clear_description:
+        return jsonify({"success": False, "error": "Nothing to update"}), 400
+
+    updated = 0
+    errors = []
+
+    for book_id in book_ids:
+        try:
+            update_calibre_metadata(
+                book_id,
+                author=author if author else None,
+                publisher="" if clear_publisher else (publisher if publisher else None),
+                series="" if clear_series else (series if series else None),
+                tags="" if clear_tags else (tags_value if tags_value else None),
+                description="" if clear_description else (description if description else None)
+            )
+            updated += 1
+        except subprocess.TimeoutExpired:
+            errors.append(f"Book {book_id}: metadata update timed out")
+        except subprocess.CalledProcessError as e:
+            error = (e.stderr or e.stdout or str(e)).strip()
+            errors.append(f"Book {book_id}: {error}")
+        except Exception as e:
+            errors.append(f"Book {book_id}: {str(e)}")
+
+    if updated > 0:
+        kobo_server.add_history("metadata", "success", f"Bulk updated metadata for {updated} book(s)")
+    if errors:
+        kobo_server.add_history("metadata", "error", errors[0])
+
+    return jsonify({
+        "success": updated > 0,
+        "count": updated,
+        "errors": errors
+    }), (200 if updated > 0 else 500)
+
+@api_bp.route('/upload', methods=['POST'])
+def api_upload():
+    """Nhận file ebook từ UI và thêm trực tiếp vào Calibre."""
+    uploads = [f for f in request.files.getlist('file') if f and f.filename]
+    if not uploads:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    results = []
+    success_count = 0
+
+    for upload in uploads:
+        if not is_allowed_upload(upload.filename):
+            results.append({
+                "filename": upload.filename,
+                "success": False,
+                "error": "Only EPUB/KEPUB files are supported"
+            })
+            continue
+
+        safe_name = secure_filename(upload.filename) or "uploaded_book.epub"
+        _, ext = os.path.splitext(safe_name)
+        if safe_name.lower().endswith('.kepub.epub'):
+            ext = '.kepub.epub'
+
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+                temp_path = temp_file.name
+            upload.save(temp_path)
+
+            metadata = extract_epub_metadata(temp_path)
+            duplicate = find_duplicate_book(metadata["title"], metadata["author"])
+            if duplicate:
+                results.append({
+                    "filename": upload.filename,
+                    "success": False,
+                    "error": f"Duplicate detected: {duplicate['title']} by {duplicate['author']} (ID {duplicate['id']})"
+                })
+                kobo_server.add_history("upload", "error", f"Duplicate skipped: {upload.filename}")
+                continue
+
+            run_calibredb_command(['add', temp_path])
+            success_count += 1
+            results.append({
+                "filename": upload.filename,
+                "success": True
+            })
+            kobo_server.add_history("upload", "success", f"Added {upload.filename} to Calibre")
+        except subprocess.TimeoutExpired:
+            results.append({
+                "filename": upload.filename,
+                "success": False,
+                "error": "Calibre add timed out"
+            })
+            kobo_server.add_history("upload", "error", f"Upload timed out: {upload.filename}")
+        except subprocess.CalledProcessError as e:
+            error = (e.stderr or e.stdout or str(e)).strip()
+            results.append({
+                "filename": upload.filename,
+                "success": False,
+                "error": error
+            })
+            kobo_server.add_history("upload", "error", f"{upload.filename}: {error}")
+        except Exception as e:
+            results.append({
+                "filename": upload.filename,
+                "success": False,
+                "error": str(e)
+            })
+            kobo_server.add_history("upload", "error", f"{upload.filename}: {str(e)}")
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    if success_count == 0:
+        first_error = next((item["error"] for item in results if not item["success"]), "Upload failed")
+        return jsonify({
+            "success": False,
+            "error": first_error,
+            "results": results
+        }), 500
+
+    return jsonify({
+        "success": True,
+        "count": success_count,
+        "results": results
+    })
+
+@api_bp.route('/calibre_update_cover', methods=['POST'])
+def api_calibre_update_cover():
+    book_id = request.form.get('book_id', type=int)
+    cover_file = request.files.get('cover')
+
+    if not book_id:
+        return jsonify({"success": False, "error": "Missing book_id"}), 400
+    if not cover_file or not cover_file.filename:
+        return jsonify({"success": False, "error": "No cover uploaded"}), 400
+
+    book_folder = get_book_folder_path(book_id)
+    if not book_folder:
+        return jsonify({"success": False, "error": "Book not found"}), 404
+
+    cover_path = os.path.join(book_folder, 'cover.jpg')
+    try:
+        image = Image.open(cover_file.stream)
+        if image.mode not in ('RGB', 'L'):
+            image = image.convert('RGB')
+        elif image.mode == 'L':
+            image = image.convert('RGB')
+        image.save(cover_path, format='JPEG', quality=92)
+        kobo_server.add_history("metadata", "success", f"Updated cover for book ID {book_id}")
+        return jsonify({"success": True})
+    except Exception as e:
+        kobo_server.add_history("metadata", "error", f"Cover update failed for {book_id}: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # --- System Endpoints ---
 
@@ -201,7 +615,21 @@ def api_status_stream():
 @api_bp.route('/disconnect', methods=['POST'])
 def api_disconnect():
     kobo_server.disconnect_trigger = True
+    kobo_server.add_history("system", "info", "Disconnect requested for Kobo device")
     return jsonify({"success": True})
+
+@api_bp.route('/toggle_auto_sync', methods=['POST'])
+def api_toggle_auto_sync():
+    data = request.json or {}
+    auto_sync = data.get("auto_sync")
+
+    if not isinstance(auto_sync, bool):
+        return jsonify({"success": False, "error": "auto_sync must be a boolean"}), 400
+
+    kobo_server.state["auto_sync"] = auto_sync
+    kobo_server.save_settings()
+    kobo_server.add_history("system", "info", f"Auto-Sync {'enabled' if auto_sync else 'disabled'}")
+    return jsonify({"success": True, "auto_sync": kobo_server.state["auto_sync"]})
 
 @api_bp.route('/download', methods=['POST'])
 def api_download():
@@ -209,10 +637,18 @@ def api_download():
     data = request.json or {}
     url, add_calibre = data.get("url"), data.get("add_to_calibre", False)
     if not url: return jsonify({"success": False, "error": "No URL"})
-    
-    task = ScraperTask(url, add_to_calibre=add_calibre)
-    threading.Thread(target=task.run, daemon=True).start()
-    return jsonify({"success": True, "message": "Download started"})
+
+    def run_task():
+        task = ScraperTask(url, add_to_calibre=add_calibre)
+        task.run()
+
+    kobo_server.state["task_status"] = "queued"
+    kobo_server.state["task_message"] = "Task queued..."
+    kobo_server.state["task_error"] = ""
+    kobo_server.state["download_progress"] = 0
+    kobo_server.add_history("download", "info", f"Queued download for {url}")
+    threading.Thread(target=run_task, daemon=True).start()
+    return jsonify({"success": True, "message": "Download queued"})
 
 import threading # Cần cho api_download phía trên
 
@@ -222,4 +658,28 @@ def reader_view(book_id):
     if not session.get('logged_in'):
         from flask import redirect, url_for
         return redirect(url_for('login'))
-    return send_file('templates/reader.html') # Hoặc render_template nếu có jinja 
+
+    conn = get_db_connection()
+    if not conn:
+        return "Calibre library not found", 404
+
+    try:
+        cursor = conn.cursor()
+        query = '''
+            SELECT b.title
+            FROM books b
+            JOIN data d ON b.id = d.book
+            WHERE b.id = ? AND d.format = "EPUB"
+            LIMIT 1
+        '''
+        cursor.execute(query, (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            return "EPUB not found for this book", 404
+
+        return render_template('reader.html', book_id=book_id, title=row[0])
+    except Exception as e:
+        return f"Reader error: {e}", 500
+    finally:
+        conn.close()

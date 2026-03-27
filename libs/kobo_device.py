@@ -17,6 +17,7 @@ OP_SET_LIBRARY_INFO = 19
 
 class KoboSyncServer:
     def __init__(self):
+        self.settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_settings.json')
         self.state = {
             "status": "Listening",
             "client_address": None,
@@ -25,7 +26,12 @@ class KoboSyncServer:
             "device_info": "Unknown",
             "free_space": 0,
             "auto_sync": False,
-            "download_progress": 0
+            "download_progress": 0,
+            "task_status": "idle",
+            "task_message": "",
+            "task_error": "",
+            "last_downloaded_file": "",
+            "task_history": []
         }
         self.client_socket = None
         self.books_to_sync = []
@@ -34,6 +40,47 @@ class KoboSyncServer:
         self.working = False
         self.ebook_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'EBOOK')
         os.makedirs(self.ebook_dir, exist_ok=True)
+        self.load_settings()
+
+    def load_settings(self):
+        """Load persisted runtime settings if available."""
+        try:
+            if not os.path.exists(self.settings_path):
+                return
+            with open(self.settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            if isinstance(settings.get("auto_sync"), bool):
+                self.state["auto_sync"] = settings["auto_sync"]
+        except Exception as e:
+            print(f"[Settings] Failed to load settings: {e}")
+
+    def save_settings(self):
+        """Persist runtime settings changed from the dashboard."""
+        settings = {
+            "auto_sync": self.state["auto_sync"]
+        }
+        try:
+            with open(self.settings_path, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, ensure_ascii=True, indent=2)
+        except Exception as e:
+            print(f"[Settings] Failed to save settings: {e}")
+
+    def add_history(self, kind, status, message):
+        """Keep a small in-memory history for the dashboard activity panel."""
+        entry = {
+            "time": time.strftime('%H:%M:%S'),
+            "kind": kind,
+            "status": status,
+            "message": message
+        }
+        history = self.state.setdefault("task_history", [])
+        if history:
+            latest = history[0]
+            if latest["kind"] == entry["kind"] and latest["status"] == entry["status"] and latest["message"] == entry["message"]:
+                latest["time"] = entry["time"]
+                return
+        history.insert(0, entry)
+        del history[20:]
 
     def _read_packet(self, sock):
         length_str = b''

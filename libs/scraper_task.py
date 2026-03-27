@@ -1,7 +1,6 @@
 import os
 import asyncio
 import traceback
-import threading
 from pathlib import Path
 from libs.scrapefactory import ScraperFactory
 from libs.book_gen import EPUBGenerator
@@ -14,16 +13,30 @@ class ScraperTask:
         self.add_to_calibre = add_to_calibre
         self.ebook_dir = Path(kobo_server.ebook_dir)
 
+    def _update_status(self, status, message, progress=None, error=""):
+        kobo_server.state["task_status"] = status
+        kobo_server.state["task_message"] = message
+        kobo_server.state["task_error"] = error
+        if progress is not None:
+            kobo_server.state["download_progress"] = progress
+        if status in {"queued", "success", "error"}:
+            history_status = "info" if status == "queued" else status
+            kobo_server.add_history("download", history_status, error or message)
+
     async def _async_run(self):
         """Logic xử lý chính (Asynchronous)."""
         try:
+            self._update_status("running", "Fetching book details...", 10)
+
             # 1. Khởi tạo scraper phù hợp
             scraper = ScraperFactory.get_scraper(self.url)
             async with scraper as client:
                 book_info = await client.parse_book_info()
+                self._update_status("running", f"Downloading chapters for {book_info.title}...", 35)
                 book_content = await client.get_book_content()
                 
             # 2. Tạo file EPUB
+            self._update_status("running", "Building EPUB file...", 55)
             epub_gen = EPUBGenerator(book_info, book_content)
             raw_epub_name = remove_accents_and_special_chars(book_info.title).replace(" ", "_") + ".epub"
             raw_epub_path = self.ebook_dir / raw_epub_name
@@ -37,6 +50,7 @@ class ScraperTask:
             fix_epub(str(raw_epub_path))
             
             # 3. Chuyển đổi sang KePub (nếu có thể)
+            self._update_status("running", "Converting to KEPUB...", 75)
             kepub_name = raw_epub_name.replace(".epub", ".kepub.epub")
             kepub_path = self.ebook_dir / kepub_name
             
@@ -59,17 +73,24 @@ class ScraperTask:
             # 4. Thêm vào Calibre Database
             if self.add_to_calibre and final_path.exists():
                 import subprocess
+                self._update_status("running", "Adding book to Calibre...", 90)
                 try:
                     subprocess.run(['calibredb', 'add', str(final_path)], check=True)
                     print(f"[Calibre] Added {final_path.name} successfully.")
                 except Exception as ce:
                     print(f"[Calibre] Failed to add: {ce}")
+                    self._update_status("error", "Failed to add book to Calibre.", 0, str(ce))
+                    return False, str(ce)
+
+            self._update_status("success", f"Completed: {final_path.name}", 100)
+            kobo_server.state["last_downloaded_file"] = final_path.name
             
             return True, final_path.name
             
         except Exception as e:
             print(f"[Scraper] Task error: {e}")
             traceback.print_exc()
+            self._update_status("error", "Download task failed.", 0, str(e))
             return False, str(e)
 
     def run(self):

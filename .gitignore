@@ -14,3 +14,6 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
+
+# Runtime app settings
+app_settings.json

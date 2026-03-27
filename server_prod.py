@@ -2,12 +2,13 @@ import os
 import logging
 from dotenv import load_dotenv
 from waitress import serve
-from server import app
 from libs.kobo_device import start_tcp_listener
 from libs.watcher import start_watcher
 
 # Load environment variables from .env file
 load_dotenv()
+
+from server import app
 
 # Basic logging configuration for production
 logging.basicConfig(
@@ -15,9 +16,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("waitress")
-
-# Security: Ensure a stable secret key in production
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 if __name__ == "__main__":
     print("-" * 50)
