@@ -8,6 +8,7 @@ playwright
 Pillow
 numpy
 torch
-torchvision
 spandrel
 tqdm
+lxml
+waitress
