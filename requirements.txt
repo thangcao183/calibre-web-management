@@ -1,6 +1,5 @@
-Flask>=3.0.0
-Werkzeug>=3.0.0
-EbookLib>=0.18
+Flask
+EbookLib
 requests
 beautifulsoup4
 aiohttp
@@ -12,3 +11,4 @@ spandrel
 tqdm
 lxml
 waitress
+python-dotenv
