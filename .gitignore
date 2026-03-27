@@ -1,0 +1,15 @@
+# Python Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
+# Python Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and other temporary files
+.idea/
+.vscode/
+.DS_Store
