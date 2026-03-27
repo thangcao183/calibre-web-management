@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNCaGED Web Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark sticky-top glass-nav">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <span class="pulse-dot"></span>
+                <span class="fw-bold">UNCaGED</span>
+                <span class="text-primary fw-light">Dashboard</span>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <div class="d-none d-md-flex align-items-center gap-2">
+                    <span id="connection-indicator" class="status-dot"></span>
+                    <span id="status-text" class="small fw-semibold">Starting Server...</span>
+                </div>
+                <a href="/logout" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-xl py-4">
+
+        <!-- Device Connection Card -->
+        <div class="card glass-card mb-3" id="connection-card" style="display:none;">
+            <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-phone me-2"></i>Device Connection</h5>
+                <div class="row g-2 small">
+                    <div class="col-sm-4">
+                        <span class="text-secondary">Client IP:</span>
+                        <span id="client-ip" class="ms-2 fw-semibold text-secondary">Waiting...</span>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-secondary">Last Heartbeat:</span>
+                        <span id="last-ping" class="ms-2 fw-semibold text-secondary">--:--:--</span>
+                    </div>
+                    <div class="col-sm-4">
+                        <span class="text-secondary">Device Type:</span>
+                        <span id="device-type" class="ms-2 fw-semibold text-secondary">Unknown</span>
+                    </div>
+                </div>
+                <div id="instruction-box" class="alert alert-primary mt-3 mb-0 py-2 small">
+                    Mở Kobo-UNCaGED trên thiết bị Kobo của bạn. Nếu dùng Direct Connect, hãy nhập Web Server IP và port <b>9090</b>.
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Card -->
+        <div class="card glass-card mb-3">
+            <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
+                <div class="input-group">
+                    <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
+                    <button class="btn btn-success" id="download-btn" onclick="downloadBook()">
+                        <i class="bi bi-download me-1"></i>Download KEPUB
+                    </button>
+                </div>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="add-calibre">
+                    <label class="form-check-label small" for="add-calibre">Add downloaded book to Calibre Library automatically</label>
+                </div>
+                <div class="progress mt-2" style="height:5px; display:none;" id="download-progress-container">
+                    <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
+                </div>
+                <div id="download-message" class="small mt-2 fw-medium"></div>
+            </div>
+        </div>
+
+        <!-- Calibre Library -->
+        <div class="card glass-card">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-book me-2"></i>Calibre Library
+                        <span class="badge bg-primary ms-2" id="calibre-count"></span>
+                    </h5>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="text" id="calibre-search" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Filter title / author..." oninput="onSearchInput()" style="width:220px;">
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="auto-sync-cb" onchange="toggleAutoSync(this)">
+                            <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
+                        </div>
+                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub" style="display:none;" onchange="uploadEbook(this)">
+                        <button class="btn btn-sm btn-purple" onclick="document.getElementById('upload-ebook-file').click()">
+                            <i class="bi bi-plus-lg"></i> Add
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" id="btn-batch-select" onclick="toggleSelectMode()">
+                            <i class="bi bi-check2-square"></i> Select
+                        </button>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="changeCalibrePage(-1)" id="calibre-prev" disabled>&lt;</button>
+                            <span class="btn btn-outline-secondary disabled" id="calibre-page-info" style="pointer-events:none;"></span>
+                            <button class="btn btn-outline-secondary" onclick="changeCalibrePage(1)" id="calibre-next" disabled>&gt;</button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="fetchCalibreBooks()"><i class="bi bi-arrow-clockwise"></i></button>
+                        <button class="btn btn-sm btn-danger" id="eject-btn" onclick="disconnectKobo()" style="display:none;">
+                            <i class="bi bi-eject-fill"></i> Eject
+                        </button>
+                    </div>
+                </div>
+                <div class="calibre-grid" id="calibre-book-list">
+                    <div class="text-secondary text-center py-4">Loading Calibre database...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Action Modal (Bootstrap) -->
+    <div class="modal fade" id="bookModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content glass-card border-secondary">
+                <div class="modal-header border-secondary">
+                    <h6 class="modal-title text-truncate" id="modal-title"></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p id="modal-author" class="text-secondary small mb-3"></p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-info" id="btn-read" onclick="window.open('/reader/' + currentBookId, '_blank')">
+                            <i class="bi bi-book me-1"></i>Read
+                        </button>
+                        <button class="btn btn-success" id="btn-send-epub" onclick="syncCalibre(false)">Send EPUB</button>
+                        <button class="btn btn-warning" id="btn-send-kepub" onclick="syncCalibre(true)">Convert & Send KEPUB</button>
+                        <button class="btn btn-danger" onclick="deleteCalibreBook()">
+                            <i class="bi bi-trash me-1"></i>Delete from Library
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Selection Bar -->
+    <div id="selection-bar" class="selection-bar animate__animated animate__slideInUp" style="display:none;">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><span id="selected-count">0</span> items selected</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-light btn-sm" onclick="toggleSelectMode()">Cancel</button>
+                <button class="btn btn-danger btn-sm px-4" onclick="bulkDelete()">Delete Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/main.js"></script>
+</body>
+</html>

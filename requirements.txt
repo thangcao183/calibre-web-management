@@ -1,0 +1,13 @@
+Flask>=3.0.0
+Werkzeug>=3.0.0
+EbookLib>=0.18
+requests
+beautifulsoup4
+aiohttp
+playwright
+Pillow
+numpy
+torch
+torchvision
+spandrel
+tqdm

@@ -1,0 +1,172 @@
+/* ── Custom overrides for Bootstrap 5 dark theme ── */
+
+:root {
+    --bs-body-bg: #0f172a;
+    --bs-body-font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+    background: #0f172a;
+    overflow-x: hidden;
+}
+
+/* ── Animated gradient background ── */
+.bg-animation {
+    position: fixed; inset: 0; z-index: -1;
+    background: radial-gradient(circle at 15% 50%, rgba(59,130,246,0.12), transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(139,92,246,0.12), transparent 40%);
+    animation: drift 20s infinite alternate ease-in-out;
+}
+@keyframes drift {
+    0%   { transform: scale(1) translate(0,0); }
+    100% { transform: scale(1.1) translate(20px,-20px); }
+}
+
+/* ── Glassmorphism ── */
+.glass-nav {
+    background: rgba(15,23,42,0.65) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.glass-card {
+    background: rgba(30,41,59,0.65) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 12px !important;
+    transition: transform 0.2s, border-color 0.3s;
+}
+.glass-card:hover {
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
+/* ── Pulse dot ── */
+.pulse-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #3b82f6;
+    box-shadow: 0 0 0 0 rgba(59,130,246,0.7);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+}
+@keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
+    70%  { box-shadow: 0 0 0 8px rgba(59,130,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+}
+
+/* ── Status dot ── */
+.status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #f59e0b; display: inline-block; flex-shrink: 0;
+}
+.status-dot.connected {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+/* ── Purple button ── */
+/* Selection Mode */
+.selection-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 1rem 0;
+    z-index: 1050;
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
+}
+
+.book-checkbox {
+    position: absolute; top: 10px; right: 10px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid #fff;
+    z-index: 5;
+    transition: all 0.2s;
+    display: none;
+}
+.select-mode .book-checkbox { display: block; }
+.calibre-book.selected .book-checkbox {
+    background: #3b82f6; border-color: #3b82f6;
+}
+.calibre-book.selected .book-checkbox::after {
+    content: "\F26E"; font-family: "bootstrap-icons";
+    color: #fff; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    height: 100%;
+}
+
+.calibre-book.selected {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.btn-purple {
+    background: #8b5cf6; color: #fff; border: none;
+}
+.btn-purple:hover { background: #7c3aed; color: #fff; }
+
+/* ── Calibre Book Grid ── */
+.calibre-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1.25rem;
+}
+
+.calibre-book {
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; cursor: pointer;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px; padding: 0.7rem;
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative; overflow: hidden;
+}
+.calibre-book:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(59,130,246,0.15);
+    border-color: #3b82f6;
+}
+
+.calibre-desc {
+    position: absolute; inset: 0;
+    background: rgba(15, 23, 42, 0.95);
+    padding: 0.8rem; font-size: 0.75rem; color: #cbd5e1;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    overflow-y: auto; text-align: left;
+    z-index: 2; line-height: 1.4;
+}
+.calibre-book:hover .calibre-desc {
+    opacity: 1;
+}
+
+.calibre-desc-title {
+    font-weight: 700; color: #fff; margin-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.2rem;
+}
+
+.calibre-cover {
+    width: 100%; aspect-ratio: 2/3; object-fit: cover;
+    border-radius: 4px; margin-bottom: 0.6rem;
+    background: rgba(255,255,255,0.04);
+}
+
+.calibre-title {
+    font-size: 0.82rem; font-weight: 600; color: #f1f5f9;
+    display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; line-clamp: 2;
+    overflow: hidden; line-height: 1.25; margin-bottom: 0.2rem;
+}
+
+.calibre-author {
+    font-size: 0.72rem; color: #94a3b8;
+}
+
+/* ── Responsive ── */
+@media (max-width: 576px) {
+    .calibre-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.8rem; }
+}
