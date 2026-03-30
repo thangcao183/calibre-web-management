@@ -5,6 +5,7 @@ import time
 import tempfile
 import subprocess
 import threading
+import uuid
 from collections import deque
 from flask import Blueprint, jsonify, request, send_file, Response, session, render_template
 from werkzeug.utils import secure_filename
@@ -25,12 +26,26 @@ DOWNLOAD_QUEUE = deque()
 DOWNLOAD_QUEUE_LOCK = threading.Lock()
 DOWNLOAD_WORKER_RUNNING = False
 
-kobo_server.update_state(download_queue_count=0, current_download_url="")
+kobo_server.update_state(
+    download_queue_count=0,
+    current_download_url="",
+    current_download_id="",
+    download_queue_urls=[],
+    download_queue_items=[],
+)
+
+
+def queue_items_payload():
+    return [{"id": item["id"], "url": item["url"]} for item in DOWNLOAD_QUEUE]
+
+
+def queue_urls_payload(items):
+    return [item["url"] for item in items]
 
 @api_bp.before_request
 def check_login():
     """Bảo vệ toàn bộ API bằng session, ngoại trừ whitelist cho Kobo và Dashboard UI."""
-    whitelist = ['api_calibre_cover', 'api_calibre_epub', 'api_status_stream', 'api_download', 'api_calibre_books']
+    whitelist = ['api_calibre_cover', 'api_calibre_epub', 'api_status_stream', 'api_download', 'api_download_cancel', 'api_calibre_books']
     if request.endpoint and any(request.endpoint.endswith(e) for e in whitelist):
         return
         
@@ -667,15 +682,60 @@ def api_calibre_update_cover():
 @api_bp.route('/status/stream')
 def api_status_stream():
     """SSE Stream để Dashboard cập nhật thời gian thực mà không cần polling."""
+    connection_keys = {
+        "status", "client_address", "last_ping", "auto_sync"
+    }
+    device_keys = {
+        "device_info", "free_space", "books_on_device"
+    }
+    download_keys = {
+        "download_progress", "task_status", "task_message", "task_error",
+        "last_downloaded_file", "download_queue_count", "current_download_url",
+        "current_download_id", "download_queue_urls", "download_queue_items"
+    }
+    history_keys = {"task_history"}
+
+    def sse_event(event_name, payload):
+        return f"event: {event_name}\ndata: {json.dumps(payload, sort_keys=True)}\n\n"
+
+    def payload_for(keys, snapshot):
+        return {k: snapshot.get(k) for k in keys if k in snapshot}
+
     def event_stream():
-        last_state = None
+        last_version = -1
+        last_snapshot = {}
+        heartbeat_seconds = 20
         while True:
-            current_snapshot = kobo_server.state_snapshot()
-            current_state = json.dumps(current_snapshot, sort_keys=True)
-            if current_state != last_state:
-                yield f"data: {current_state}\n\n"
-                last_state = current_state
-            time.sleep(1)
+            version, snapshot, changed = kobo_server.wait_for_state_change(
+                last_version,
+                timeout=heartbeat_seconds,
+            )
+            if changed:
+                if last_version == -1:
+                    yield sse_event("state", snapshot)
+                    last_snapshot = snapshot
+                    last_version = version
+                    continue
+
+                changed_keys = {
+                    key for key in snapshot.keys()
+                    if last_snapshot.get(key) != snapshot.get(key)
+                }
+
+                if changed_keys & connection_keys:
+                    yield sse_event("connection", payload_for(connection_keys, snapshot))
+                if changed_keys & device_keys:
+                    yield sse_event("device", payload_for(device_keys, snapshot))
+                if changed_keys & download_keys:
+                    yield sse_event("download", payload_for(download_keys, snapshot))
+                if changed_keys & history_keys:
+                    yield sse_event("history", payload_for(history_keys, snapshot))
+
+                last_snapshot = snapshot
+                last_version = version
+            else:
+                # SSE comment frame as keepalive to avoid proxy idle timeout
+                yield ": keep-alive\n\n"
     response = Response(event_stream(), mimetype="text/event-stream")
     response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Accel-Buffering"] = "no"
@@ -695,7 +755,7 @@ def api_toggle_auto_sync():
     if not isinstance(auto_sync, bool):
         return jsonify({"success": False, "error": "auto_sync must be a boolean"}), 400
 
-    kobo_server.state["auto_sync"] = auto_sync
+    kobo_server.update_state(auto_sync=auto_sync)
     kobo_server.save_settings()
     kobo_server.add_history("system", "info", f"Auto-Sync {'enabled' if auto_sync else 'disabled'}")
     return jsonify({"success": True, "auto_sync": kobo_server.state["auto_sync"]})
@@ -714,32 +774,55 @@ def api_download():
             with DOWNLOAD_QUEUE_LOCK:
                 if not DOWNLOAD_QUEUE:
                     DOWNLOAD_WORKER_RUNNING = False
-                    kobo_server.update_state(download_queue_count=0, current_download_url="")
+                    kobo_server.update_state(
+                        download_queue_count=0,
+                        current_download_url="",
+                        current_download_id="",
+                        download_queue_urls=[],
+                        download_queue_items=[],
+                    )
                     if kobo_server.state_snapshot().get("task_status") not in {"running", "queued"}:
                         kobo_server.update_state(task_status="idle", task_message="", task_error="", download_progress=0)
                     return
-                next_url = DOWNLOAD_QUEUE.popleft()
+                next_item = DOWNLOAD_QUEUE.popleft()
                 remaining = len(DOWNLOAD_QUEUE)
+                remaining_items = queue_items_payload()
+                remaining_urls = queue_urls_payload(remaining_items)
 
             kobo_server.update_state(
                 download_queue_count=remaining,
-                current_download_url=next_url,
+                download_queue_urls=remaining_urls,
+                download_queue_items=remaining_items,
+                current_download_url=next_item["url"],
+                current_download_id=next_item["id"],
                 task_status="queued",
                 task_message=f"Starting queued download ({remaining} remaining)...",
                 task_error="",
             )
-            task = ScraperTask(next_url)
+            task = ScraperTask(next_item["url"])
             task.run()
 
             with DOWNLOAD_QUEUE_LOCK:
-                kobo_server.update_state(download_queue_count=len(DOWNLOAD_QUEUE))
+                current_items = queue_items_payload()
+                kobo_server.update_state(
+                    download_queue_count=len(DOWNLOAD_QUEUE),
+                    download_queue_urls=queue_urls_payload(current_items),
+                    download_queue_items=current_items,
+                )
 
     global DOWNLOAD_WORKER_RUNNING
     with DOWNLOAD_QUEUE_LOCK:
-        DOWNLOAD_QUEUE.append(url)
+        queue_item = {"id": uuid.uuid4().hex[:8], "url": url}
+        DOWNLOAD_QUEUE.append(queue_item)
+        queue_items = queue_items_payload()
+        queue_urls = queue_urls_payload(queue_items)
         queue_position = len(DOWNLOAD_QUEUE)
         queue_count = len(DOWNLOAD_QUEUE)
-        kobo_server.update_state(download_queue_count=queue_count)
+        kobo_server.update_state(
+            download_queue_count=queue_count,
+            download_queue_urls=queue_urls,
+            download_queue_items=queue_items,
+        )
         kobo_server.add_history("download", "info", f"Queued download ({queue_position}) for {url}")
         should_start_worker = not DOWNLOAD_WORKER_RUNNING
         if should_start_worker:
@@ -751,9 +834,43 @@ def api_download():
     return jsonify({
         "success": True,
         "message": f"Download queued at position {queue_position}",
+        "queue_id": queue_item["id"],
         "queue_position": queue_position,
         "queue_count": queue_count
     })
+
+
+@api_bp.route('/download/cancel', methods=['POST'])
+def api_download_cancel():
+    data = request.json or {}
+    queue_id = data.get("queue_id")
+    if not queue_id:
+        return jsonify({"success": False, "error": "Missing queue_id"}), 400
+
+    with DOWNLOAD_QUEUE_LOCK:
+        removed_item = None
+        kept_items = []
+        while DOWNLOAD_QUEUE:
+            item = DOWNLOAD_QUEUE.popleft()
+            if item.get("id") == queue_id and removed_item is None:
+                removed_item = item
+                continue
+            kept_items.append(item)
+
+        DOWNLOAD_QUEUE.extend(kept_items)
+        queue_items = queue_items_payload()
+        queue_urls = queue_urls_payload(queue_items)
+
+    if not removed_item:
+        return jsonify({"success": False, "error": "Queue item not found or already processing"}), 404
+
+    kobo_server.update_state(
+        download_queue_count=len(queue_items),
+        download_queue_urls=queue_urls,
+        download_queue_items=queue_items,
+    )
+    kobo_server.add_history("download", "info", f"Cancelled queued item {queue_id}")
+    return jsonify({"success": True, "queue_count": len(queue_items), "queue_id": queue_id})
 
 # --- Reader Route ---
 @reader_bp.route('/<int:book_id>')

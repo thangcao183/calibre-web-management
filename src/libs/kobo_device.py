@@ -19,6 +19,8 @@ class KoboSyncServer:
     def __init__(self):
         self.settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_settings.json')
         self.state_lock = threading.Lock()
+        self.state_condition = threading.Condition(self.state_lock)
+        self.state_version = 0
         self.state = {
             "status": "Listening",
             "client_address": None,
@@ -32,6 +34,9 @@ class KoboSyncServer:
             "task_message": "",
             "task_error": "",
             "last_downloaded_file": "",
+            "current_download_id": "",
+            "download_queue_urls": [],
+            "download_queue_items": [],
             "task_history": []
         }
         self.client_socket = None
@@ -74,23 +79,42 @@ class KoboSyncServer:
             "status": status,
             "message": message
         }
-        with self.state_lock:
+        with self.state_condition:
             history = self.state.setdefault("task_history", [])
             if history:
                 latest = history[0]
                 if latest["kind"] == entry["kind"] and latest["status"] == entry["status"] and latest["message"] == entry["message"]:
                     latest["time"] = entry["time"]
+                    self.state_version += 1
+                    self.state_condition.notify_all()
                     return
             history.insert(0, entry)
             del history[20:]
+            self.state_version += 1
+            self.state_condition.notify_all()
 
     def update_state(self, **kwargs):
-        with self.state_lock:
-            self.state.update(kwargs)
+        with self.state_condition:
+            changed = False
+            for key, value in kwargs.items():
+                if self.state.get(key) != value:
+                    self.state[key] = value
+                    changed = True
+            if changed:
+                self.state_version += 1
+                self.state_condition.notify_all()
 
     def state_snapshot(self):
         with self.state_lock:
             return dict(self.state)
+
+    def wait_for_state_change(self, last_seen_version, timeout=20):
+        with self.state_condition:
+            changed = self.state_condition.wait_for(
+                lambda: self.state_version != last_seen_version,
+                timeout=timeout,
+            )
+            return self.state_version, dict(self.state), changed
 
     def _read_packet(self, sock, timeout=10):
         try:
@@ -141,9 +165,11 @@ class KoboSyncServer:
 
     def handle_client(self, sock, addr):
         self.client_socket = sock
-        self.state["status"] = "Connected"
-        self.state["client_address"] = f"{addr[0]}:{addr[1]}"
-        self.state["last_ping"] = time.strftime('%H:%M:%S')
+        self.update_state(
+            status="Connected",
+            client_address=f"{addr[0]}:{addr[1]}",
+            last_ping=time.strftime('%H:%M:%S')
+        )
         self.sync_trigger = False
         self.disconnect_trigger = False
 
@@ -154,8 +180,7 @@ class KoboSyncServer:
             if op != OP_OK or data is None:
                 print("[TCP] Init failed: no valid response from device")
                 return
-            with self.state_lock:
-                self.state["device_info"] = data.get("deviceName", "Unknown Kobo")
+            self.update_state(device_info=data.get("deviceName", "Unknown Kobo"))
 
             # 2. Device Info
             self._send_packet(sock, OP_GET_DEVICE_INFO, {})
@@ -165,8 +190,7 @@ class KoboSyncServer:
             self._send_packet(sock, OP_FREE_SPACE, {})
             op, data = self._read_packet(sock, timeout=5)
             if data and "free_space_on_device" in data:
-                with self.state_lock:
-                    self.state["free_space"] = data["free_space_on_device"]
+                self.update_state(free_space=data["free_space_on_device"])
 
             # 4. Get Book Count
             self._send_packet(sock, OP_GET_BOOK_COUNT, {
@@ -184,8 +208,7 @@ class KoboSyncServer:
                     b_op, b_data = self._read_packet(sock, timeout=5)
                     if b_data:
                         books.append(b_data)
-                with self.state_lock:
-                    self.state["books_on_device"] = books
+                self.update_state(books_on_device=books)
 
             # 5. Set Library Info
             self._send_packet(sock, OP_SET_LIBRARY_INFO, {
@@ -214,8 +237,7 @@ class KoboSyncServer:
                         self._send_packet(sock, OP_NOOP, {})
                         op, data = self._read_packet(sock, timeout=15)
                         if op is None: break
-                        with self.state_lock:
-                            self.state["last_ping"] = time.strftime('%H:%M:%S')
+                        self.update_state(last_ping=time.strftime('%H:%M:%S'))
                     except Exception as noop_err:
                         print(f"[TCP] NOOP error: {noop_err}")
                         break
@@ -229,9 +251,7 @@ class KoboSyncServer:
             print(f"[TCP] Handler error: {e}")
             traceback.print_exc()
         finally:
-            with self.state_lock:
-                self.state["status"] = "Listening"
-                self.state["client_address"] = None
+            self.update_state(status="Listening", client_address=None)
             self.client_socket = None
             sock.close()
             print("[TCP] Disconnected Client.")
@@ -292,7 +312,9 @@ class KoboSyncServer:
         print(f"[TCP] Finished sending {filename}")
         
         # Add to local list immediately
-        self.state["books_on_device"].append({"lpath": filename})
+        current_books = list(self.state_snapshot().get("books_on_device", []))
+        current_books.append({"lpath": filename})
+        self.update_state(books_on_device=current_books)
 
 kobo_server = KoboSyncServer()
 

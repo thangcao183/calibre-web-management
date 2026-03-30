@@ -70,46 +70,46 @@
                         <span class="badge bg-primary ms-2" id="calibre-count"></span>
                     </h5>
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                        <input type="text" id="calibre-search" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Filter title / author..." oninput="onSearchInput()" style="width:220px;">
-                        <select id="calibre-format-filter" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:120px;" onchange="onFormatFilterChange()">
+                        <input type="text" id="calibre-search" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Filter title / author..." style="width:220px;">
+                        <select id="calibre-format-filter" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:120px;">
                             <option value="">All formats</option>
                             <option value="epub">EPUB</option>
                             <option value="kepub">KEPUB</option>
                             <option value="pdf">PDF</option>
                         </select>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()" title="Clear active filters">
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-clear-filters" title="Clear active filters">
                             <i class="bi bi-funnel"></i> Clear
                         </button>
                         <span id="active-filter-badge" class="badge text-bg-info" style="display:none;"></span>
                         <div class="d-flex align-items-center gap-1">
-                            <select id="saved-filter-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:160px;" onchange="applySavedFilter(this.value)">
+                            <select id="saved-filter-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:160px;">
                                 <option value="">Saved filters</option>
                             </select>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="saveCurrentFilter()" title="Save current filter">
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-save-filter" title="Save current filter">
                                 <i class="bi bi-bookmark-plus"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="deleteSavedFilter()" title="Delete selected filter">
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-delete-filter" title="Delete selected filter">
                                 <i class="bi bi-bookmark-x"></i>
                             </button>
                         </div>
                         <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input" type="checkbox" id="auto-sync-cb" onchange="toggleAutoSync(this)">
+                            <input class="form-check-input" type="checkbox" id="auto-sync-cb">
                             <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
                         </div>
-                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub" multiple style="display:none;" onchange="uploadEbook(this)">
-                        <button class="btn btn-sm btn-purple" onclick="document.getElementById('upload-ebook-file').click()">
+                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub" multiple style="display:none;">
+                        <button class="btn btn-sm btn-purple" id="btn-upload-trigger">
                             <i class="bi bi-plus-lg"></i> Add
                         </button>
-                        <button class="btn btn-sm btn-outline-info" id="btn-batch-select" onclick="toggleSelectMode()">
+                        <button class="btn btn-sm btn-outline-info" id="btn-batch-select">
                             <i class="bi bi-check2-square"></i> Select
                         </button>
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary" onclick="changeCalibrePage(-1)" id="calibre-prev" disabled>&lt;</button>
+                            <button class="btn btn-outline-secondary" id="calibre-prev" disabled>&lt;</button>
                             <span class="btn btn-outline-secondary disabled" id="calibre-page-info" style="pointer-events:none;"></span>
-                            <button class="btn btn-outline-secondary" onclick="changeCalibrePage(1)" id="calibre-next" disabled>&gt;</button>
+                            <button class="btn btn-outline-secondary" id="calibre-next" disabled>&gt;</button>
                         </div>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="fetchCalibreBooks()"><i class="bi bi-arrow-clockwise"></i></button>
-                        <button class="btn btn-sm btn-danger" id="eject-btn" onclick="disconnectKobo()" style="display:none;">
+                        <button class="btn btn-sm btn-outline-secondary" id="btn-refresh-books"><i class="bi bi-arrow-clockwise"></i></button>
+                        <button class="btn btn-sm btn-danger" id="eject-btn" style="display:none;">
                             <i class="bi bi-eject-fill"></i> Eject
                         </button>
                     </div>
@@ -131,7 +131,7 @@
                             </div>
                             <div class="input-group">
                                 <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
-                                <button class="btn btn-success" id="download-btn" onclick="downloadBook()">
+                                <button class="btn btn-success" id="download-btn">
                                     <i class="bi bi-download me-1"></i>Queue Download
                                 </button>
                             </div>
@@ -139,6 +139,7 @@
                                 <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
                             </div>
                             <div id="download-message" class="small mt-2 fw-medium"></div>
+                            <div id="download-queue-list" class="download-queue-list mt-2"></div>
                         </div>
                     </div>
 
@@ -186,20 +187,20 @@
                             </div>
                         </div>
                     </div>
-                    <input type="file" id="cover-upload-input" accept="image/*" style="display:none;" onchange="uploadCover(this)">
+                    <input type="file" id="cover-upload-input" accept="image/*" style="display:none;">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary" id="btn-change-cover" onclick="document.getElementById('cover-upload-input').click()">
+                        <button class="btn btn-outline-secondary" id="btn-change-cover">
                             <i class="bi bi-image me-1"></i>Change Cover
                         </button>
-                        <button class="btn btn-outline-light" id="btn-edit-metadata" onclick="editMetadata()">
+                        <button class="btn btn-outline-light" id="btn-edit-metadata">
                             <i class="bi bi-pencil-square me-1"></i>Edit Metadata
                         </button>
-                        <button class="btn btn-info" id="btn-read" onclick="window.open('/reader/' + currentBookId, '_blank')">
+                        <button class="btn btn-info" id="btn-read">
                             <i class="bi bi-book me-1"></i>Read
                         </button>
-                        <button class="btn btn-success" id="btn-send-epub" onclick="syncCalibre(false)">Send EPUB</button>
-                        <button class="btn btn-warning" id="btn-send-kepub" onclick="syncCalibre(true)">Convert & Send KEPUB</button>
-                        <button class="btn btn-danger" onclick="deleteCalibreBook()">
+                        <button class="btn btn-success" id="btn-send-epub">Send EPUB</button>
+                        <button class="btn btn-warning" id="btn-send-kepub">Convert & Send KEPUB</button>
+                        <button class="btn btn-danger" id="btn-delete-book">
                             <i class="bi bi-trash me-1"></i>Delete from Library
                         </button>
                     </div>
@@ -213,14 +214,21 @@
         <div class="container d-flex justify-content-between align-items-center">
             <span class="fw-semibold"><span id="selected-count">0</span> items selected</span>
             <div class="d-flex gap-2">
-                <button class="btn btn-outline-info btn-sm" onclick="bulkEditMetadata()">Bulk Edit</button>
-                <button class="btn btn-outline-light btn-sm" onclick="toggleSelectMode()">Cancel</button>
-                <button class="btn btn-danger btn-sm px-4" onclick="bulkDelete()">Delete Selected</button>
+                <button class="btn btn-outline-info btn-sm" id="btn-bulk-edit">Bulk Edit</button>
+                <button class="btn btn-outline-light btn-sm" id="btn-select-cancel">Cancel</button>
+                <button class="btn btn-danger btn-sm px-4" id="btn-bulk-delete">Delete Selected</button>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/main.js"></script>
+    <script src="/static/js/core.js"></script>
+    <script src="/static/js/filters.js"></script>
+    <script src="/static/js/library.js"></script>
+    <script src="/static/js/modal-actions.js"></script>
+    <script src="/static/js/download.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script src="/static/js/ui-bindings.js"></script>
+    <script src="/static/js/main-init.js"></script>
 </body>
 </html>

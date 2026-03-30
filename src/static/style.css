@@ -274,6 +274,51 @@ body {
     border-color: rgba(239,68,68,0.25);
 }
 
+.download-queue-list {
+    display: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 0.55rem;
+}
+
+.download-queue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    padding: 0.2rem 0;
+}
+
+.download-queue-item .queue-pill {
+    flex-shrink: 0;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(59,130,246,0.2);
+    color: #bfdbfe;
+}
+
+.download-queue-item.current .queue-pill {
+    background: rgba(16,185,129,0.22);
+    color: #a7f3d0;
+}
+
+.download-queue-item .queue-url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.download-queue-item .queue-cancel-btn {
+    margin-left: auto;
+    padding: 0.05rem 0.45rem;
+    line-height: 1.2;
+    font-size: 0.68rem;
+}
+
 .task-history-item.is-info {
     border-color: rgba(59,130,246,0.25);
 }
