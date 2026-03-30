@@ -93,35 +93,51 @@ class KoboSyncServer:
             return dict(self.state)
 
     def _read_packet(self, sock):
-        length_str = b''
-        while True:
-            char = sock.recv(1)
-            if not char:
-                return None, None
-            if char == b'[':
-                break
-            length_str += char
-            if len(length_str) > 20:
-                raise Exception("Invalid packet format")
-                
-        packet_len = int(length_str.decode('utf-8'))
-        data = b'['
-        remaining = packet_len - 1
-        while remaining > 0:
-            chunk = sock.recv(min(remaining, 4096))
-            if not chunk:
-                return None, None
-            data += chunk
-            remaining -= len(chunk)
+        try:
+            sock.settimeout(30)
+            length_str = b''
+            while True:
+                char = sock.recv(1)
+                if not char:
+                    return None, None
+                if char == b'[':
+                    break
+                length_str += char
+                if len(length_str) > 20:
+                    print(f"[TCP] Warning: Invalid length prefix received, Got: {length_str}")
+                    return None, None
+                    
+            packet_len = int(length_str.decode('utf-8'))
+            data = b'['
+            remaining = packet_len - 1
+            while remaining > 0:
+                chunk = sock.recv(min(remaining, 4096))
+                if not chunk:
+                    return None, None
+                data += chunk
+                remaining -= len(chunk)
 
-        packet = json.loads(data.decode('utf-8'))
-        return packet[0], packet[1]
+            packet = json.loads(data.decode('utf-8'))
+            return packet[0], packet[1]
+        except socket.timeout:
+            print("[TCP] Socket timeout while reading packet")
+            return None, None
+        except (json.JSONDecodeError, ValueError, IndexError) as e:
+            print(f"[TCP] Error parsing packet: {e}")
+            return None, None
+        except Exception as e:
+            print(f"[TCP] Unexpected error reading packet: {e}")
+            return None, None
 
     def _send_packet(self, sock, opcode, payload):
-        packet = [opcode, payload]
-        json_str = json.dumps(packet).replace(" ", "")
-        data = f"{len(json_str)}{json_str}".encode('utf-8')
-        sock.sendall(data)
+        try:
+            packet = [opcode, payload]
+            json_str = json.dumps(packet).replace(" ", "")
+            data = f"{len(json_str)}{json_str}".encode('utf-8')
+            sock.sendall(data)
+        except Exception as e:
+            print(f"[TCP] Error sending packet: {e}")
+            raise
 
     def handle_client(self, sock, addr):
         self.client_socket = sock
