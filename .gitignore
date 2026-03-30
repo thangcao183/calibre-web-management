@@ -10,6 +10,7 @@ src/libs/__pycache__/
 src/libs/models/
 *.py[cod]
 *$py.class
+CLAUDE.md
 
 # IDE and editor files
 .idea/
