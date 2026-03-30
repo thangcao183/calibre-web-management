@@ -16,6 +16,7 @@ CLAUDE.md
 .idea/
 .vscode/
 .DS_Store
+docs/
 
 # Generated deployment files (user-specific)
 calibre-web.service

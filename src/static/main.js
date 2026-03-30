@@ -145,6 +145,18 @@ function handleStatusUpdate(data) {
     const taskStatus = data.task_status || 'idle';
     const taskMessage = data.task_message || '';
     const taskError = data.task_error || '';
+    const queueCount = Number(data.download_queue_count || 0);
+    const queueBadge = document.getElementById('download-queue-badge');
+
+    if (queueBadge) {
+        if (queueCount > 0) {
+            queueBadge.style.display = 'inline-flex';
+            queueBadge.textContent = `Queue: ${queueCount}`;
+        } else {
+            queueBadge.style.display = 'none';
+            queueBadge.textContent = 'Queue: 0';
+        }
+    }
 
     if (data.download_progress > 0) {
         if (pc) pc.style.display = 'flex';
@@ -156,7 +168,8 @@ function handleStatusUpdate(data) {
 
     if (msg) {
         if (taskStatus === 'queued' || taskStatus === 'running') {
-            msg.textContent = taskMessage || 'Processing...';
+            const suffix = queueCount > 0 ? ` (${queueCount} waiting)` : '';
+            msg.textContent = (taskMessage || 'Processing...') + suffix;
             msg.className = 'small mt-2 fw-medium text-primary';
         } else if (taskStatus === 'success') {
             msg.textContent = taskMessage || 'Completed successfully.';
@@ -167,9 +180,7 @@ function handleStatusUpdate(data) {
         }
     }
 
-    if (btn) {
-        btn.disabled = taskStatus === 'queued' || taskStatus === 'running';
-    }
+    if (btn) btn.disabled = false;
 
     if (taskStatus !== lastTaskStatus) {
         if (taskStatus === 'success') {
@@ -827,7 +838,8 @@ async function downloadBook() {
         });
         const data = await res.json();
         if (data.success) {
-            msg.textContent = data.message || 'Download queued.';
+            const queueText = data.queue_position ? `Queued at position ${data.queue_position}.` : 'Download queued.';
+            msg.textContent = data.message || queueText;
             msg.className = 'small mt-2 fw-medium text-primary';
             document.getElementById('download-url').value = '';
         } else {
@@ -840,9 +852,7 @@ async function downloadBook() {
         msg.className = 'small mt-2 fw-medium text-danger';
         showError('Download failed', 'Network error.');
     } finally {
-        if (lastTaskStatus !== 'queued' && lastTaskStatus !== 'running') {
-            btn.disabled = false;
-        }
+        btn.disabled = false;
     }
 }
 
@@ -853,6 +863,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // SSE — server pushes status only when it changes
     const evtSource = new EventSource('/api/status/stream');
+    evtSource.onopen = () => {
+        const status = document.getElementById('status-text');
+        if (status && status.textContent === 'Connecting...') {
+            status.textContent = 'Listening (Port 9090)';
+            status.className = 'small fw-semibold text-light';
+        }
+    };
     evtSource.onmessage = (e) => {
         try { handleStatusUpdate(JSON.parse(e.data)); } catch(err) {}
     };

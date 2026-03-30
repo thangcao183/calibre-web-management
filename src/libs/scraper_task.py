@@ -2,6 +2,7 @@ import os
 import asyncio
 import traceback
 from pathlib import Path
+from typing import Optional
 from libs.scrapefactory import ScraperFactory
 from libs.book_gen import EPUBGenerator
 from libs.text_proc import remove_accents_and_special_chars
@@ -11,16 +12,32 @@ class ScraperTask:
     def __init__(self, url):
         self.url = url
         self.ebook_dir = Path(kobo_server.ebook_dir)
+        self.current_title: Optional[str] = None
 
     def _update_status(self, status, message, progress=None, error=""):
-        kobo_server.state["task_status"] = status
-        kobo_server.state["task_message"] = message
-        kobo_server.state["task_error"] = error
+        payload = {
+            "task_status": status,
+            "task_message": message,
+            "task_error": error,
+        }
         if progress is not None:
-            kobo_server.state["download_progress"] = progress
+            payload["download_progress"] = progress
+        kobo_server.update_state(**payload)
         if status in {"queued", "success", "error"}:
             history_status = "info" if status == "queued" else status
             kobo_server.add_history("download", history_status, error or message)
+
+    def _on_chapter_progress(self, completed: int, total: int):
+        if total <= 0:
+            return
+        chapter_ratio = completed / total
+        progress = 35 + int(chapter_ratio * 45)
+        title = self.current_title or "book"
+        self._update_status(
+            "running",
+            f"Downloading chapters for {title}... {completed}/{total}",
+            min(progress, 80),
+        )
 
     async def _async_run(self):
         """Logic xử lý chính (Asynchronous)."""
@@ -31,8 +48,9 @@ class ScraperTask:
             scraper = ScraperFactory.get_scraper(self.url)
             async with scraper as client:
                 book_info = await client.parse_book_info()
+                self.current_title = book_info.title
                 self._update_status("running", f"Downloading chapters for {book_info.title}...", 35)
-                book_content = await client.get_book_content()
+                book_content = await client.get_book_content(progress_callback=self._on_chapter_progress)
                 
             # 2. Tạo file EPUB
             self._update_status("running", "Building EPUB file...", 55)
@@ -65,7 +83,7 @@ class ScraperTask:
                     return False, str(ce)
 
             self._update_status("success", f"Completed: {epub_path.name}", 100)
-            kobo_server.state["last_downloaded_file"] = epub_path.name
+            kobo_server.update_state(last_downloaded_file=epub_path.name)
             
             return True, epub_path.name
             

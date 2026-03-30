@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Callable, Optional
 from playwright.async_api import async_playwright
 import asyncio
 from .basescraper import BaseClient
@@ -164,7 +164,11 @@ class TtcClient(BaseClient):
                 await asyncio.sleep(2)
         return {"title": chapter.name, "content": ""}
 
-    async def get_book_content(self, max_concurrent_tasks=5) -> list:
+    async def get_book_content(
+        self,
+        max_concurrent_tasks=5,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> list:
         try:
             chapter_list = self.book_infor.chapter_list
 
@@ -186,12 +190,18 @@ class TtcClient(BaseClient):
             # Lưu trữ kết quả theo thứ tự ban đầu
             results = [None] * len(chapter_list)
 
+            completed = 0
+            total = len(chapter_list)
+
             for future in tqdm.tqdm(
                 asyncio.as_completed(tasks),
-                total=len(tasks),
+                total=total,
                 desc="Downloading Chapters",
             ):
                 index, result = await future
+                completed += 1
+                if progress_callback:
+                    progress_callback(completed, total)
                 if result is not None:
                     results[index] = result # type: ignore
 

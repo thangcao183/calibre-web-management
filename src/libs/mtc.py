@@ -2,7 +2,7 @@ import os
 import re
 import json
 import asyncio
-from typing import List, Optional
+from typing import Callable, List, Optional
 from bs4 import BeautifulSoup
 from unicodedata import normalize
 from .text_proc import smart_punctuation, clean_json_string
@@ -170,7 +170,11 @@ class MtcClient(BaseClient):
                 await asyncio.sleep(2)
         return chapter.name, ""
 
-    async def get_book_content(self, max_concurrent_tasks=10):
+    async def get_book_content(
+        self,
+        max_concurrent_tasks=10,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ):
         """
         Tải nội dung tất cả các chương (async) với giới hạn nhiệm vụ đồng thời 
         và đảm bảo thứ tự các chương.
@@ -202,8 +206,14 @@ class MtcClient(BaseClient):
             # Lưu trữ kết quả theo thứ tự ban đầu
             results = [None] * len(chapter_list)
             
-            for future in tqdm.tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Downloading Chapters"):
+            completed = 0
+            total = len(chapter_list)
+
+            for future in tqdm.tqdm(asyncio.as_completed(tasks), total=total, desc="Downloading Chapters"):
                 index, result = await future
+                completed += 1
+                if progress_callback:
+                    progress_callback(completed, total)
                 if result is not None:
                     results[index] = result
             

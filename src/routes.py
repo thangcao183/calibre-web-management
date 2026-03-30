@@ -4,6 +4,8 @@ import json
 import time
 import tempfile
 import subprocess
+import threading
+from collections import deque
 from flask import Blueprint, jsonify, request, send_file, Response, session, render_template
 from werkzeug.utils import secure_filename
 from PIL import Image
@@ -19,6 +21,11 @@ reader_bp = Blueprint('reader', __name__, url_prefix='/reader')
 
 ALLOWED_UPLOAD_EXTENSIONS = {'.epub', '.kepub', '.kepub.epub'}
 CALIBRE_ADD_TIMEOUT = int(os.getenv("CALIBRE_ADD_TIMEOUT_SECONDS", "120"))
+DOWNLOAD_QUEUE = deque()
+DOWNLOAD_QUEUE_LOCK = threading.Lock()
+DOWNLOAD_WORKER_RUNNING = False
+
+kobo_server.update_state(download_queue_count=0, current_download_url="")
 
 @api_bp.before_request
 def check_login():
@@ -646,12 +653,17 @@ def api_status_stream():
     def event_stream():
         last_state = None
         while True:
-            current_state = json.dumps(kobo_server.state)
+            current_snapshot = kobo_server.state_snapshot()
+            current_state = json.dumps(current_snapshot, sort_keys=True)
             if current_state != last_state:
                 yield f"data: {current_state}\n\n"
                 last_state = current_state
             time.sleep(1)
-    return Response(event_stream(), mimetype="text/event-stream")
+    response = Response(event_stream(), mimetype="text/event-stream")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Connection"] = "keep-alive"
+    response.headers["X-Accel-Buffering"] = "no"
+    return response
 
 @api_bp.route('/disconnect', methods=['POST'])
 def api_disconnect():
@@ -677,21 +689,55 @@ def api_download():
     """Tải truyện từ web và đẩy vào Calibre library."""
     data = request.json or {}
     url = data.get("url")
-    if not url: return jsonify({"success": False, "error": "No URL"})
+    if not url:
+        return jsonify({"success": False, "error": "No URL"})
 
-    def run_task():
-        task = ScraperTask(url)
-        task.run()
+    def worker_loop():
+        global DOWNLOAD_WORKER_RUNNING
+        while True:
+            with DOWNLOAD_QUEUE_LOCK:
+                if not DOWNLOAD_QUEUE:
+                    DOWNLOAD_WORKER_RUNNING = False
+                    kobo_server.update_state(download_queue_count=0, current_download_url="")
+                    if kobo_server.state_snapshot().get("task_status") not in {"running", "queued"}:
+                        kobo_server.update_state(task_status="idle", task_message="", task_error="", download_progress=0)
+                    return
+                next_url = DOWNLOAD_QUEUE.popleft()
+                remaining = len(DOWNLOAD_QUEUE)
 
-    kobo_server.state["task_status"] = "queued"
-    kobo_server.state["task_message"] = "Task queued..."
-    kobo_server.state["task_error"] = ""
-    kobo_server.state["download_progress"] = 0
-    kobo_server.add_history("download", "info", f"Queued download for {url}")
-    threading.Thread(target=run_task, daemon=True).start()
-    return jsonify({"success": True, "message": "Download queued"})
+            kobo_server.update_state(
+                download_queue_count=remaining,
+                current_download_url=next_url,
+                task_status="queued",
+                task_message=f"Starting queued download ({remaining} remaining)...",
+                task_error="",
+            )
+            task = ScraperTask(next_url)
+            task.run()
 
-import threading # Cần cho api_download phía trên
+            with DOWNLOAD_QUEUE_LOCK:
+                kobo_server.update_state(download_queue_count=len(DOWNLOAD_QUEUE))
+
+    global DOWNLOAD_WORKER_RUNNING
+    with DOWNLOAD_QUEUE_LOCK:
+        DOWNLOAD_QUEUE.append(url)
+        queue_position = len(DOWNLOAD_QUEUE)
+        queue_count = len(DOWNLOAD_QUEUE)
+        kobo_server.update_state(download_queue_count=queue_count)
+        kobo_server.add_history("download", "info", f"Queued download ({queue_position}) for {url}")
+        should_start_worker = not DOWNLOAD_WORKER_RUNNING
+        if should_start_worker:
+            DOWNLOAD_WORKER_RUNNING = True
+
+    if should_start_worker:
+        threading.Thread(target=worker_loop, daemon=True).start()
+
+    return jsonify({
+        "success": True,
+        "message": f"Download queued at position {queue_position}",
+        "queue_position": queue_position,
+        "queue_count": queue_count
+    })
 
 # --- Reader Route ---
 @reader_bp.route('/<int:book_id>')

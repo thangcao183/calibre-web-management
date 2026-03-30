@@ -18,6 +18,7 @@ OP_SET_LIBRARY_INFO = 19
 class KoboSyncServer:
     def __init__(self):
         self.settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app_settings.json')
+        self.state_lock = threading.Lock()
         self.state = {
             "status": "Listening",
             "client_address": None,
@@ -73,14 +74,23 @@ class KoboSyncServer:
             "status": status,
             "message": message
         }
-        history = self.state.setdefault("task_history", [])
-        if history:
-            latest = history[0]
-            if latest["kind"] == entry["kind"] and latest["status"] == entry["status"] and latest["message"] == entry["message"]:
-                latest["time"] = entry["time"]
-                return
-        history.insert(0, entry)
-        del history[20:]
+        with self.state_lock:
+            history = self.state.setdefault("task_history", [])
+            if history:
+                latest = history[0]
+                if latest["kind"] == entry["kind"] and latest["status"] == entry["status"] and latest["message"] == entry["message"]:
+                    latest["time"] = entry["time"]
+                    return
+            history.insert(0, entry)
+            del history[20:]
+
+    def update_state(self, **kwargs):
+        with self.state_lock:
+            self.state.update(kwargs)
+
+    def state_snapshot(self):
+        with self.state_lock:
+            return dict(self.state)
 
     def _read_packet(self, sock):
         length_str = b''

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Callable, Optional
 
 class BaseClient(ABC):
     """Lớp cơ sở cho tất cả các Scraper."""
@@ -12,6 +13,6 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    async def get_book_content(self):
+    async def get_book_content(self, progress_callback: Optional[Callable[[int, int], None]] = None):
         """Lấy nội dung toàn bộ chương"""
         pass

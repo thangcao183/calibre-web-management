@@ -25,15 +25,15 @@ body {
 /* ── Glassmorphism ── */
 .glass-nav {
     background: rgba(15,23,42,0.65) !important;
-    backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .glass-card {
     background: rgba(30,41,59,0.65) !important;
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
     border: 1px solid rgba(255,255,255,0.08) !important;
     border-radius: 12px !important;
     transition: transform 0.2s, border-color 0.3s;
@@ -71,6 +71,7 @@ body {
 .selection-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: rgba(30, 41, 59, 0.95);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border-top: 1px solid rgba(255,255,255,0.1);
     padding: 1rem 0;
@@ -221,8 +222,13 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
-    max-height: 260px;
+    max-height: 420px;
     overflow-y: auto;
+}
+
+.dashboard-side-panel {
+    position: sticky;
+    top: 88px;
 }
 
 .task-history-item {
@@ -302,5 +308,15 @@ body {
     }
     .modal-cover-large {
         max-width: 160px;
+    }
+}
+
+@media (max-width: 1199px) {
+    .dashboard-side-panel {
+        position: static;
+    }
+
+    .task-history-list {
+        max-height: 300px;
     }
 }

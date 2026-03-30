@@ -24,7 +24,7 @@
             <div class="d-flex align-items-center gap-3">
                 <div class="d-none d-md-flex align-items-center gap-2">
                     <span id="connection-indicator" class="status-dot"></span>
-                    <span id="status-text" class="small fw-semibold">Starting Server...</span>
+                    <span id="status-text" class="small fw-semibold">Connecting...</span>
                 </div>
                 <a href="/logout" class="btn btn-sm btn-outline-danger">
                     <i class="bi bi-box-arrow-right me-1"></i>Logout
@@ -59,42 +59,11 @@
             </div>
         </div>
 
-        <!-- Download Card -->
-        <div class="card glass-card mb-3">
-            <div class="card-body">
-                <h5 class="card-title mb-3"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
-                <div class="input-group">
-                    <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
-                    <button class="btn btn-success" id="download-btn" onclick="downloadBook()">
-                        <i class="bi bi-download me-1"></i>Download KEPUB
-                    </button>
-                </div>
-                <div class="form-check mt-2">
-                    <input class="form-check-input" type="checkbox" id="add-calibre">
-                    <label class="form-check-label small" for="add-calibre">Add downloaded book to Calibre Library automatically</label>
-                </div>
-                <div class="progress mt-2" style="height:5px; display:none;" id="download-progress-container">
-                    <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
-                </div>
-                <div id="download-message" class="small mt-2 fw-medium"></div>
-            </div>
-        </div>
-
-        <div class="card glass-card mb-3">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
-                    <span class="small text-secondary">Live updates</span>
-                </div>
-                <div id="task-history-list" class="task-history-list">
-                    <div class="text-secondary text-center py-3">No activity yet.</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Calibre Library -->
-        <div class="card glass-card">
-            <div class="card-body">
+        <div class="row g-3">
+            <div class="col-xl-8">
+                <!-- Calibre Library -->
+                <div class="card glass-card h-100">
+                    <div class="card-body">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-book me-2"></i>Calibre Library
@@ -147,6 +116,43 @@
                 </div>
                 <div class="calibre-grid" id="calibre-book-list">
                     <div class="text-secondary text-center py-4">Loading Calibre database...</div>
+                </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="dashboard-side-panel">
+                    <div class="card glass-card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <h5 class="card-title mb-0"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
+                                <span id="download-queue-badge" class="badge text-bg-info" style="display:none;">Queue: 0</span>
+                            </div>
+                            <div class="input-group">
+                                <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
+                                <button class="btn btn-success" id="download-btn" onclick="downloadBook()">
+                                    <i class="bi bi-download me-1"></i>Queue Download
+                                </button>
+                            </div>
+                            <div class="progress mt-2" style="height:5px; display:none;" id="download-progress-container">
+                                <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
+                            </div>
+                            <div id="download-message" class="small mt-2 fw-medium"></div>
+                        </div>
+                    </div>
+
+                    <div class="card glass-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+                                <span class="small text-secondary">Live updates</span>
+                            </div>
+                            <div id="task-history-list" class="task-history-list">
+                                <div class="text-secondary text-center py-3">No activity yet.</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
