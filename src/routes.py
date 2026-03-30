@@ -30,7 +30,7 @@ kobo_server.update_state(download_queue_count=0, current_download_url="")
 @api_bp.before_request
 def check_login():
     """Bảo vệ toàn bộ API bằng session, ngoại trừ whitelist cho Kobo và Dashboard UI."""
-    whitelist = ['api_calibre_cover', 'api_calibre_epub', 'api_status_stream']
+    whitelist = ['api_calibre_cover', 'api_calibre_epub', 'api_status_stream', 'api_download', 'api_calibre_books']
     if request.endpoint and any(request.endpoint.endswith(e) for e in whitelist):
         return
         
@@ -42,7 +42,13 @@ def get_db_connection():
     db_path = os.path.join(CALIBRE_LIBRARY_DIR, 'metadata.db')
     if not os.path.exists(db_path):
         return None
-    return sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+    try:
+        conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=10)
+        conn.isolation_level = 'DEFERRED'
+        return conn
+    except sqlite3.OperationalError as e:
+        print(f"[DB] Connection error: {e}")
+        return None
 
 def is_allowed_upload(filename):
     """Cho phép upload EPUB và các biến thể KEPUB phổ biến."""
@@ -109,6 +115,7 @@ def find_duplicate_book(title, author):
 
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         cursor.execute('SELECT id, title, author_sort FROM books')
         for book_id, existing_title, existing_author in cursor.fetchall():
             if normalize_book_text(existing_title) != normalized_title:
@@ -131,6 +138,7 @@ def get_book_folder_path(book_id):
         return None
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         cursor.execute('SELECT path FROM books WHERE id = ?', (book_id,))
         row = cursor.fetchone()
         if not row:
@@ -156,6 +164,7 @@ def api_calibre_books():
     
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         
         # Base query parts
         where_clauses = []
@@ -223,9 +232,14 @@ def api_calibre_books():
             "limit": limit
         })
     except Exception as e:
+        print(f"[DB] Error querying books: {e}")
         return jsonify({"success": False, "error": str(e)})
     finally:
-        conn.close()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @api_bp.route('/calibre/book/<int:book_id>')
 def api_calibre_book_detail(book_id):
@@ -235,6 +249,7 @@ def api_calibre_book_detail(book_id):
 
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         query = '''
             SELECT
                 b.id,
@@ -315,6 +330,7 @@ def api_calibre_epub(book_id):
     if not conn: return "Not found", 404
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         query = 'SELECT b.path, d.name FROM books b JOIN data d ON b.id = d.book WHERE b.id = ? AND d.format = "EPUB"'
         cursor.execute(query, (book_id,))
         row = cursor.fetchone()
@@ -340,6 +356,7 @@ def api_sync_calibre():
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         cursor.execute('SELECT path FROM books WHERE id = ?', (book_id,))
         b_row = cursor.fetchone()
         if not b_row: return jsonify({"success": False, "error": "Book not found"})
@@ -751,6 +768,7 @@ def reader_view(book_id):
 
     try:
         cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
         query = '''
             SELECT b.title
             FROM books b

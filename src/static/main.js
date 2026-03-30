@@ -830,12 +830,20 @@ async function downloadBook() {
     btn.disabled = true;
 
     try {
-        const addToCalibre = document.getElementById('add-calibre').checked;
+        // Check if add-calibre checkbox exists, default to true if not
+        const addToCalibreElem = document.getElementById('add-calibre');
+        const addToCalibre = addToCalibreElem ? addToCalibreElem.checked : true;
+        
         const res = await fetch('/api/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, add_to_calibre: addToCalibre })
         });
+        
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
         const data = await res.json();
         if (data.success) {
             const queueText = data.queue_position ? `Queued at position ${data.queue_position}.` : 'Download queued.';
@@ -848,9 +856,10 @@ async function downloadBook() {
             showError('Download failed', data.error);
         }
     } catch (e) {
-        msg.textContent = 'Network error.';
+        console.error('Download error:', e);
+        msg.textContent = 'Error: ' + e.message;
         msg.className = 'small mt-2 fw-medium text-danger';
-        showError('Download failed', 'Network error.');
+        showError('Download failed', e.message || 'Network error.');
     } finally {
         btn.disabled = false;
     }
