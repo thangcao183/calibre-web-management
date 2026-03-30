@@ -8,9 +8,8 @@ from libs.text_proc import remove_accents_and_special_chars
 from libs.kobo_device import kobo_server
 
 class ScraperTask:
-    def __init__(self, url, add_to_calibre=False):
+    def __init__(self, url):
         self.url = url
-        self.add_to_calibre = add_to_calibre
         self.ebook_dir = Path(kobo_server.ebook_dir)
 
     def _update_status(self, status, message, progress=None, error=""):
@@ -38,54 +37,37 @@ class ScraperTask:
             # 2. Tạo file EPUB
             self._update_status("running", "Building EPUB file...", 55)
             epub_gen = EPUBGenerator(book_info, book_content)
-            raw_epub_name = remove_accents_and_special_chars(book_info.title).replace(" ", "_") + ".epub"
-            raw_epub_path = self.ebook_dir / raw_epub_name
+            epub_name = remove_accents_and_special_chars(book_info.title).replace(" ", "_") + ".epub"
+            epub_path = self.ebook_dir / epub_name
             
-            # Lưu file EPUB tạm
+            # Lưu file EPUB
             epub_gen.generate()
-            epub_gen.save(str(raw_epub_path))
+            epub_gen.save(str(epub_path))
             
             # Fix EPUB (nếu cần)
             from libs.epub_fixer import fix_epub
-            fix_epub(str(raw_epub_path))
+            fix_epub(str(epub_path))
             
-            # 3. Chuyển đổi sang KePub (nếu có thể)
-            self._update_status("running", "Converting to KEPUB...", 75)
-            kepub_name = raw_epub_name.replace(".epub", ".kepub.epub")
-            kepub_path = self.ebook_dir / kepub_name
-            
-            success_kepub = False
-            import kepubify
-            try:
-                kepubify.convert_to_kepub(str(raw_epub_path), str(kepub_path))
-                if os.path.exists(kepub_path):
-                    success_kepub = True
-                    # Xóa file epub tạm nếu convert thành công
-                    if raw_epub_path.exists(): raw_epub_path.unlink()
-            except Exception as e:
-                print(f"[Scraper] KePub convert failed: {e}")
-                # Fallback: dùng chính file epub nhưng đổi tên thành .kepub.epub (lazy kepub)
-                os.rename(raw_epub_path, kepub_path)
-                success_kepub = True
-
-            final_path = kepub_path if success_kepub else raw_epub_path
-            
-            # 4. Thêm vào Calibre Database
-            if self.add_to_calibre and final_path.exists():
+            # 3. Thêm vào Calibre Database
+            if epub_path.exists():
                 import subprocess
-                self._update_status("running", "Adding book to Calibre...", 90)
+                calibre_library = os.path.expanduser("~/Calibre Library")
+                self._update_status("running", "Adding book to Calibre...", 85)
                 try:
-                    subprocess.run(['calibredb', 'add', str(final_path)], check=True)
-                    print(f"[Calibre] Added {final_path.name} successfully.")
+                    subprocess.run(
+                        ['calibredb', '--with-library', calibre_library, 'add', str(epub_path)],
+                        check=True, capture_output=True, text=True, timeout=120
+                    )
+                    print(f"[Calibre] Added {epub_path.name} successfully.")
                 except Exception as ce:
                     print(f"[Calibre] Failed to add: {ce}")
                     self._update_status("error", "Failed to add book to Calibre.", 0, str(ce))
                     return False, str(ce)
 
-            self._update_status("success", f"Completed: {final_path.name}", 100)
-            kobo_server.state["last_downloaded_file"] = final_path.name
+            self._update_status("success", f"Completed: {epub_path.name}", 100)
+            kobo_server.state["last_downloaded_file"] = epub_path.name
             
-            return True, final_path.name
+            return True, epub_path.name
             
         except Exception as e:
             print(f"[Scraper] Task error: {e}")

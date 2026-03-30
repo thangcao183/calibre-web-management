@@ -635,11 +635,11 @@ def api_toggle_auto_sync():
 def api_download():
     """Tải truyện từ web và đẩy vào Calibre library."""
     data = request.json or {}
-    url, add_calibre = data.get("url"), data.get("add_to_calibre", False)
+    url = data.get("url")
     if not url: return jsonify({"success": False, "error": "No URL"})
 
     def run_task():
-        task = ScraperTask(url, add_to_calibre=add_calibre)
+        task = ScraperTask(url)
         task.run()
 
     kobo_server.state["task_status"] = "queued"
