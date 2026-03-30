@@ -11,6 +11,7 @@ src/libs/models/
 *.py[cod]
 *$py.class
 CLAUDE.md
+prompt_copilot_vscode.md
 
 # IDE and editor files
 .idea/

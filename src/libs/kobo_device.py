@@ -92,9 +92,9 @@ class KoboSyncServer:
         with self.state_lock:
             return dict(self.state)
 
-    def _read_packet(self, sock):
+    def _read_packet(self, sock, timeout=10):
         try:
-            sock.settimeout(30)
+            sock.settimeout(timeout)
             length_str = b''
             while True:
                 char = sock.recv(1)
@@ -148,12 +148,14 @@ class KoboSyncServer:
         self.disconnect_trigger = False
 
         try:
-            # 1. Init Info
+            # 1. Init Info (faster timeout for init)
             self._send_packet(sock, OP_GET_INIT_INFO, {"passwordChallenge": ""})
-            op, data = self._read_packet(sock)
-            if op != OP_OK or data is None: 
-                raise Exception("Init failed or no data")
-            self.state["device_info"] = data.get("deviceName", "Unknown Kobo")
+            op, data = self._read_packet(sock, timeout=5)
+            if op != OP_OK or data is None:
+                print("[TCP] Init failed: no valid response from device")
+                return
+            with self.state_lock:
+                self.state["device_info"] = data.get("deviceName", "Unknown Kobo")
 
             # 2. Device Info
             self._send_packet(sock, OP_GET_DEVICE_INFO, {})
@@ -161,9 +163,10 @@ class KoboSyncServer:
 
             # 3. Free space
             self._send_packet(sock, OP_FREE_SPACE, {})
-            op, data = self._read_packet(sock)
+            op, data = self._read_packet(sock, timeout=5)
             if data and "free_space_on_device" in data:
-                self.state["free_space"] = data["free_space_on_device"]
+                with self.state_lock:
+                    self.state["free_space"] = data["free_space_on_device"]
 
             # 4. Get Book Count
             self._send_packet(sock, OP_GET_BOOK_COUNT, {
@@ -178,10 +181,11 @@ class KoboSyncServer:
                 count = data["count"]
                 books = []
                 for _ in range(count):
-                    b_op, b_data = self._read_packet(sock)
+                    b_op, b_data = self._read_packet(sock, timeout=5)
                     if b_data:
                         books.append(b_data)
-                self.state["books_on_device"] = books
+                with self.state_lock:
+                    self.state["books_on_device"] = books
 
             # 5. Set Library Info
             self._send_packet(sock, OP_SET_LIBRARY_INFO, {
@@ -206,10 +210,15 @@ class KoboSyncServer:
                     
                 # Send NOOP to keep alive
                 if not self.working:
-                    self._send_packet(sock, OP_NOOP, {})
-                    op, data = self._read_packet(sock)
-                    if op is None: break
-                    self.state["last_ping"] = time.strftime('%H:%M:%S')
+                    try:
+                        self._send_packet(sock, OP_NOOP, {})
+                        op, data = self._read_packet(sock, timeout=15)
+                        if op is None: break
+                        with self.state_lock:
+                            self.state["last_ping"] = time.strftime('%H:%M:%S')
+                    except Exception as noop_err:
+                        print(f"[TCP] NOOP error: {noop_err}")
+                        break
                 
                 # Check quickly
                 for _ in range(30):
@@ -217,11 +226,12 @@ class KoboSyncServer:
                     time.sleep(0.1)
 
         except Exception as e:
-            print(f"[TCP] Error: {e}")
+            print(f"[TCP] Handler error: {e}")
             traceback.print_exc()
         finally:
-            self.state["status"] = "Listening"
-            self.state["client_address"] = None
+            with self.state_lock:
+                self.state["status"] = "Listening"
+                self.state["client_address"] = None
             self.client_socket = None
             sock.close()
             print("[TCP] Disconnected Client.")

@@ -13,6 +13,7 @@ class ScraperTask:
         self.url = url
         self.ebook_dir = Path(kobo_server.ebook_dir)
         self.current_title: Optional[str] = None
+        self.last_progress = -1  # Track last progress to avoid excessive updates
 
     def _update_status(self, status, message, progress=None, error=""):
         payload = {
@@ -32,6 +33,12 @@ class ScraperTask:
             return
         chapter_ratio = completed / total
         progress = 35 + int(chapter_ratio * 45)
+        
+        # Only update if progress changed by at least 5% to reduce lock contention
+        if abs(progress - self.last_progress) < 5:
+            return
+        
+        self.last_progress = progress
         title = self.current_title or "book"
         self._update_status(
             "running",
@@ -54,17 +61,23 @@ class ScraperTask:
                 
             # 2. Tạo file EPUB
             self._update_status("running", "Building EPUB file...", 55)
-            epub_gen = EPUBGenerator(book_info, book_content)
-            epub_name = remove_accents_and_special_chars(book_info.title).replace(" ", "_") + ".epub"
-            epub_path = self.ebook_dir / epub_name
-            
-            # Lưu file EPUB
-            epub_gen.generate()
-            epub_gen.save(str(epub_path))
-            
-            # Fix EPUB (nếu cần)
-            from libs.epub_fixer import fix_epub
-            fix_epub(str(epub_path))
+            try:
+                epub_gen = EPUBGenerator(book_info, book_content)
+                epub_name = remove_accents_and_special_chars(book_info.title).replace(" ", "_") + ".epub"
+                epub_path = self.ebook_dir / epub_name
+                
+                # Lưu file EPUB
+                epub_gen.generate()
+                epub_gen.save(str(epub_path))
+                
+                # Fix EPUB (nếu cần)
+                from libs.epub_fixer import fix_epub
+                fix_epub(str(epub_path))
+            except Exception as epub_err:
+                print(f"[Scraper] EPUB generation failed: {epub_err}")
+                traceback.print_exc()
+                self._update_status("error", "Failed to generate EPUB file.", 0, str(epub_err))
+                return False, str(epub_err)
             
             # 3. Thêm vào Calibre Database
             if epub_path.exists():
@@ -74,9 +87,12 @@ class ScraperTask:
                 try:
                     subprocess.run(
                         ['calibredb', '--with-library', calibre_library, 'add', str(epub_path)],
-                        check=True, capture_output=True, text=True, timeout=120
+                        check=True, capture_output=True, text=True, timeout=60
                     )
                     print(f"[Calibre] Added {epub_path.name} successfully.")
+                except subprocess.TimeoutExpired:
+                    print(f"[Calibre] Timeout adding book (> 60s)")
+                    self._update_status("warning", f"Added to Calibre but timeout: {epub_path.name}", 95)
                 except Exception as ce:
                     print(f"[Calibre] Failed to add: {ce}")
                     self._update_status("error", "Failed to add book to Calibre.", 0, str(ce))
