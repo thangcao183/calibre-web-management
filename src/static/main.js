@@ -187,13 +187,13 @@ function handleStatusUpdate(data) {
 function onSearchInput() {
     currentSearch = document.getElementById('calibre-search').value.trim().toLowerCase();
     currentPage = 1;
-    applyFilterAndRender();
+    fetchCalibreBooks(); // Gọi trực tiếp API
 }
 
 function onFormatFilterChange() {
     currentFormatFilter = document.getElementById('calibre-format-filter').value;
     currentPage = 1;
-    applyFilterAndRender();
+    fetchCalibreBooks(); // Gọi trực tiếp API
 }
 
 function updateActiveFilterBadge() {
@@ -221,20 +221,12 @@ function clearFilters() {
     document.getElementById('calibre-search').value = '';
     document.getElementById('calibre-format-filter').value = '';
     document.getElementById('saved-filter-select').value = '';
-    applyFilterAndRender();
+    fetchCalibreBooks();
 }
 
 function applyFilterAndRender() {
-    filteredBooks = allBooks.filter(book => {
-        const matchesSearch = !currentSearch
-            || book.title.toLowerCase().includes(currentSearch)
-            || book.author.toLowerCase().includes(currentSearch);
-        const matchesFormat = !currentFormatFilter
-            || (book.formats || []).includes(currentFormatFilter);
-        return matchesSearch && matchesFormat;
-    });
-    updateActiveFilterBadge();
-    renderCalibreBooks();
+    // Không còn lọc client-side nữa, chỉ fetch lại
+    fetchCalibreBooks();
 }
 
 async function saveCurrentFilter() {
@@ -277,7 +269,7 @@ function applySavedFilter(name) {
     currentSearch = (filter.query || '').toLowerCase();
     currentFormatFilter = filter.format || '';
     currentPage = 1;
-    applyFilterAndRender();
+    fetchCalibreBooks();
 }
 
 async function deleteSavedFilter() {
@@ -298,30 +290,28 @@ async function deleteSavedFilter() {
 }
 
 // ── Render books ──
-function renderCalibreBooks() {
+function renderCalibreBooks(data) {
     const list = document.getElementById('calibre-book-list');
     list.innerHTML = '';
 
-    const total = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
-    if (currentPage > total) currentPage = total;
+    const books = data.books || [];
+    const totalCount = data.total_count || 0;
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const page = filteredBooks.slice(start, start + PAGE_SIZE);
-
-    const label = currentSearch ? `${filteredBooks.length} kết quả` : `${allBooks.length} books`;
+    const label = currentSearch ? `${totalCount} results` : `${totalCount} books`;
     document.getElementById('calibre-count').textContent = label;
-    document.getElementById('calibre-page-info').textContent = `${currentPage} / ${total}`;
+    document.getElementById('calibre-page-info').textContent = `${currentPage} / ${totalPages}`;
     document.getElementById('calibre-prev').disabled = currentPage <= 1;
-    document.getElementById('calibre-next').disabled = currentPage >= total;
+    document.getElementById('calibre-next').disabled = currentPage >= totalPages;
 
-    if (!page.length) {
+    if (!books.length) {
         list.innerHTML = currentSearch || currentFormatFilter
             ? '<div class="library-empty-state"><strong>No books match the current filters.</strong>Try clearing search text or choosing a different format.</div>'
             : '<div class="library-empty-state"><strong>No books in the library yet.</strong>Add or download books to get started.</div>';
         return;
     }
 
-    page.forEach(book => {
+    books.forEach(book => {
         const cover = book.has_cover ? `/api/calibre/cover/${book.id}` : '/static/placeholder.jpg';
         const te = book.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const ae = book.author.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -481,20 +471,29 @@ async function bulkEditMetadata() {
     }
 }
 
-function changeCalibrePage(dir) { currentPage += dir; renderCalibreBooks(); }
+function changeCalibrePage(dir) { currentPage += dir; fetchCalibreBooks(); }
 
 // ── Fetch all books ──
+// ── Fetch books with pagination ──
 async function fetchCalibreBooks() {
     try {
-        const res = await fetch('/api/calibre_books?page=1&limit=9999');
+        const queryParams = new URLSearchParams({
+            page: currentPage,
+            limit: PAGE_SIZE,
+            search: currentSearch,
+            format: currentFormatFilter
+        });
+        
+        const res = await fetch(`/api/calibre_books?${queryParams.toString()}`);
         const data = await res.json();
+        
         if (!data.success) {
             document.getElementById('calibre-book-list').innerHTML = `<p class="text-secondary">${data.error}</p>`;
             return;
         }
-        allBooks = data.books;
-        currentPage = 1;
-        applyFilterAndRender();
+
+        updateActiveFilterBadge();
+        renderCalibreBooks(data);
     } catch (e) {
         document.getElementById('calibre-book-list').innerHTML = '<p class="text-secondary">Error loading library.</p>';
     }

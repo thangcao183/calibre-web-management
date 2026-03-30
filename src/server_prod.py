@@ -31,4 +31,5 @@ if __name__ == "__main__":
     print("-" * 50)
     
     # Run using Waitress (Multi-threaded production WSGI server)
-    serve(app, host='0.0.0.0', port=port, threads=6)
+    # Increased threads to handle multiple SSE connections
+    serve(app, host='0.0.0.0', port=port, threads=50, connection_limit=100)

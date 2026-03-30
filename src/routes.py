@@ -136,14 +136,41 @@ def get_book_folder_path(book_id):
 
 @api_bp.route('/calibre_books')
 def api_calibre_books():
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 24, type=int)
+    search = request.args.get('search', '').strip().lower()
+    fmt_filter = request.args.get('format', '').strip().lower()
+    
+    offset = (page - 1) * limit
+
     conn = get_db_connection()
     if not conn:
         return jsonify({"success": False, "error": "Calibre library not found"})
     
     try:
         cursor = conn.cursor()
-        # Payload nhẹ cho grid: chỉ giữ metadata cần để render và filter nhanh ở client
-        query = '''
+        
+        # Base query parts
+        where_clauses = []
+        params = []
+        
+        if search:
+            where_clauses.append("(LOWER(b.title) LIKE ? OR LOWER(b.author_sort) LIKE ?)")
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        if fmt_filter:
+            where_clauses.append("EXISTS (SELECT 1 FROM data d2 WHERE d2.book = b.id AND LOWER(d2.format) = ?)")
+            params.append(fmt_filter.upper())
+
+        where_stmt = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        # Count total filtered books
+        count_query = f"SELECT COUNT(*) FROM books b {where_stmt}"
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()[0]
+
+        # Fetch page of books
+        query = f'''
             SELECT
                 b.id,
                 b.title,
@@ -157,14 +184,21 @@ def api_calibre_books():
                 FROM data
                 GROUP BY book
             ) df ON b.id = df.book
+            {where_stmt}
             ORDER BY b.timestamp DESC
+            LIMIT ? OFFSET ?
         '''
-        cursor.execute(query)
+        cursor.execute(query, params + [limit, offset])
+        
         books = []
         for row in cursor.fetchall():
             book_id, title, author, path, has_cover, formats_raw = row
             formats = [fmt for fmt in formats_raw.split(',') if fmt]
-            cover_exists = os.path.exists(os.path.join(CALIBRE_LIBRARY_DIR, path, 'cover.jpg'))
+            
+            # Chỉ check cover cho các sách trong trang hiện tại (tối ưu I/O)
+            cover_exists = False
+            if not has_cover:
+                cover_exists = os.path.exists(os.path.join(CALIBRE_LIBRARY_DIR, path, 'cover.jpg'))
 
             books.append({
                 "id": book_id,
@@ -173,7 +207,14 @@ def api_calibre_books():
                 "has_cover": bool(has_cover) or cover_exists,
                 "formats": formats
             })
-        return jsonify({"success": True, "books": books})
+            
+        return jsonify({
+            "success": True, 
+            "books": books, 
+            "total_count": total_count,
+            "page": page,
+            "limit": limit
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
     finally:
