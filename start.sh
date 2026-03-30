@@ -3,7 +3,7 @@
 
 set -e
 
-# Navigate to script directory
+# Navigate to project root
 cd "$(dirname "$0")"
 
 # Load .env if present
@@ -43,5 +43,6 @@ fi
 source venv/bin/activate
 
 echo "Starting Dashboard Service..."
-# Use the production server script
+# Run from src/ directory so relative imports work
+cd src
 python3 server.py

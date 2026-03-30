@@ -2,7 +2,6 @@
 venv/
 .venv/
 env/
-.env/
 .env
 
 # Python Bytecode
@@ -10,12 +9,23 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# IDE and other temporary files
+# IDE and editor files
 .idea/
 .vscode/
 .DS_Store
+
+# Generated deployment files (user-specific)
 calibre-web.service
 nginx.conf
 
-# Runtime app settings
+# Runtime
 app_settings.json
+EBOOK/
+
+# AI models (large files)
+src/libs/models/
+
+# Test artifacts
+*.upscaled.*
+test_*.jpg
+test_*.png
