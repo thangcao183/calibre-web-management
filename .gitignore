@@ -15,6 +15,7 @@ __pycache__/
 .vscode/
 .DS_Store
 calibre-web.service
+nginx.conf
 
 # Runtime app settings
 app_settings.json
