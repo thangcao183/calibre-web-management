@@ -8,6 +8,7 @@ Pillow
 numpy
 torch
 spandrel
+packaging
 tqdm
 lxml
 waitress

@@ -34,23 +34,6 @@ def load_image(input_data):
         print(f"Error loading image: {e}")
         return None
 
-def download_model(model_path, model_url):
-    """Download the requested cv2 super resolution model."""
-    if not os.path.exists(model_path):
-        print(f"Downloading model to {model_path}...")
-        try:
-            response = requests.get(model_url, stream=True, timeout=30)
-            response.raise_for_status()
-            os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            with open(model_path, "wb") as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            print("Download complete.")
-        except Exception as e:
-            print(f"Failed to download model: {e}")
-            return False
-    return True
-
 def upscale_with_realesrgan(input_data, scale=4):
     """
     Upscale an image using RealESRGAN via Spandrel (PyTorch).
@@ -66,18 +49,14 @@ def upscale_with_realesrgan(input_data, scale=4):
         img.save(img_buffer, format="JPEG")
         return img_buffer.getvalue()
 
-    # Pre-trained RealESRGAN Anime model
-    import os
+    # Pre-trained RealESRGAN model path
     current_dir = Path(__file__).resolve().parent
-    # model_name = "RealESRGAN_x4plus_anime_6B.pth"
-    # model_name = "4x-UltraSharp.pth"
-    model_name = "4x_Nomos8k_hat_L.pth"
+    model_name = "4x-UltraSharp.pth"
     model_path = current_dir / "models" / model_name
-    # model_url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
-    # model_url = "https://huggingface.co/lokcx/4x-Ultrasharp/resolve/main/4x-UltraSharp.pth"
-    model_url = "https://huggingface.co/notkenski/upscalers/resolve/main/4xNomos8kHAT-L_otf.pth"
 
-    if not download_model(model_path, model_url):
+    # Only load from local file, do not download
+    if not os.path.exists(model_path):
+        print(f"Warning: Model file {model_path} not found. Skipping upscale.")
         img_buffer = io.BytesIO()
         img.save(img_buffer, format="JPEG")
         return img_buffer.getvalue()
