@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNCaGED Web Dashboard</title>
+    <title>Calibre Web Dashboard</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -18,7 +20,7 @@
         <div class="container-fluid px-3">
             <a class="navbar-brand d-flex align-items-center gap-2" href="#">
                 <span class="pulse-dot"></span>
-                <span class="fw-bold">UNCaGED</span>
+                <span class="fw-bold">Calibre Web</span>
                 <span class="text-primary fw-light">Dashboard</span>
             </a>
             <div class="d-flex align-items-center gap-3">
@@ -33,37 +35,134 @@
         </div>
     </nav>
 
-    <div class="container-xl py-4">
-
-        <!-- Device Connection Card -->
-        <div class="card glass-card mb-3" id="connection-card" style="display:none;">
-            <div class="card-body">
-                <h5 class="card-title mb-3"><i class="bi bi-phone me-2"></i>Device Connection</h5>
-                <div class="row g-2 small">
-                    <div class="col-sm-4">
-                        <span class="text-secondary">Client IP:</span>
-                        <span id="client-ip" class="ms-2 fw-semibold text-secondary">Waiting...</span>
-                    </div>
-                    <div class="col-sm-4">
-                        <span class="text-secondary">Last Heartbeat:</span>
-                        <span id="last-ping" class="ms-2 fw-semibold text-secondary">--:--:--</span>
-                    </div>
-                    <div class="col-sm-4">
-                        <span class="text-secondary">Device Type:</span>
-                        <span id="device-type" class="ms-2 fw-semibold text-secondary">Unknown</span>
-                    </div>
-                </div>
-                <div id="instruction-box" class="alert alert-primary mt-3 mb-0 py-2 small">
-                    Mở Kobo-UNCaGED trên thiết bị Kobo của bạn. Nếu dùng Direct Connect, hãy nhập Web Server IP và port <b>9090</b>.
+    <div class="container-fluid px-3 py-3 app-shell">
+        <aside class="app-sidebar">
+            <div class="card glass-card cwa-nav-card mb-3">
+                <div class="card-body py-2">
+                    <div class="cwa-nav-title">Navigation</div>
+                    <nav class="cwa-nav-menu" id="cwa-nav-menu">
+                        <a class="cwa-nav-item active" href="#section-library" data-section="section-library">
+                            <i class="bi bi-book"></i><span>Library</span>
+                        </a>
+                        <a class="cwa-nav-item" href="#section-download" data-section="section-download">
+                            <i class="bi bi-cloud-download"></i><span>Download</span>
+                        </a>
+                        <a class="cwa-nav-item" href="#section-activity" data-section="section-activity">
+                            <i class="bi bi-clock-history"></i><span>Activity</span>
+                        </a>
+                        <a class="cwa-nav-item" href="#section-settings" data-section="section-settings">
+                            <i class="bi bi-gear"></i><span>Settings</span>
+                        </a>
+                    </nav>
                 </div>
             </div>
-        </div>
 
-        <div class="row g-3">
-            <div class="col-xl-8">
-                <!-- Calibre Library -->
-                <div class="card glass-card h-100">
+            <div class="card glass-card cwa-mini-stats mb-3">
+                <div class="card-body py-2">
+                    <div class="cwa-nav-title">Quick Stats</div>
+                    <div class="mini-stats-grid">
+                        <div class="mini-stat-item" id="mini-stat-books-wrap" title="Source: /api/calibre_books">
+                            <div class="mini-stat-icon"><i class="bi bi-collection"></i></div>
+                            <div class="mini-stat-meta">
+                                <div class="mini-stat-label">Books</div>
+                                <div class="mini-stat-value" id="mini-stat-books">0</div>
+                                <div class="mini-stat-hint" id="mini-stat-books-hint">API • --:--:--</div>
+                            </div>
+                        </div>
+                        <div class="mini-stat-item" id="mini-stat-queue-wrap" title="Source: /api/status/stream">
+                            <div class="mini-stat-icon"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="mini-stat-meta">
+                                <div class="mini-stat-label">Queue</div>
+                                <div class="mini-stat-value" id="mini-stat-queue">0</div>
+                                <div class="mini-stat-hint" id="mini-stat-queue-hint">SSE • --:--:--</div>
+                            </div>
+                        </div>
+                        <div class="mini-stat-item" id="mini-stat-device-wrap" title="Source: /api/status/stream">
+                            <div class="mini-stat-icon"><i class="bi bi-phone"></i></div>
+                            <div class="mini-stat-meta">
+                                <div class="mini-stat-label">Device</div>
+                                <div class="mini-stat-value" id="mini-stat-device">Idle</div>
+                                <div class="mini-stat-hint" id="mini-stat-device-hint">SSE • --:--:--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Connection Card -->
+            <div class="card glass-card mb-3" id="connection-card" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="bi bi-phone me-2"></i>Device Connection</h5>
+                    <div class="row g-2 small">
+                        <div class="col-12">
+                            <span class="text-secondary">Client IP:</span>
+                            <span id="client-ip" class="ms-2 fw-semibold text-secondary">Waiting...</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="text-secondary">Last Heartbeat:</span>
+                            <span id="last-ping" class="ms-2 fw-semibold text-secondary">--:--:--</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="text-secondary">Device Type:</span>
+                            <span id="device-type" class="ms-2 fw-semibold text-secondary">Unknown</span>
+                        </div>
+                    </div>
+                    <div id="instruction-box" class="alert alert-primary mt-3 mb-0 py-2 small">
+                        Mở ứng dụng Kobo client trên thiết bị của bạn. Nếu dùng Direct Connect, nhập Web Server IP và port <b>9090</b>.
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-side-panel">
+                <div class="card glass-card mb-3" id="section-download">
                     <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="card-title mb-0"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
+                            <span id="download-queue-badge" class="badge text-bg-info" style="display:none;">Queue: 0</span>
+                        </div>
+                        <div class="input-group">
+                            <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
+                            <button class="btn btn-success" id="download-btn">
+                                <i class="bi bi-download me-1"></i>Queue Download
+                            </button>
+                        </div>
+                        <div class="progress mt-2" style="height:5px; display:none;" id="download-progress-container">
+                            <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
+                        </div>
+                        <div id="download-message" class="small mt-2 fw-medium"></div>
+                        <div id="download-queue-list" class="download-queue-list mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card glass-card" id="section-activity">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+                            <span class="small text-secondary">Live updates</span>
+                        </div>
+                        <div id="task-history-list" class="task-history-list">
+                            <div class="text-secondary text-center py-3">No activity yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="app-content">
+            <!-- Calibre Library -->
+            <div class="card glass-card" id="section-library">
+                <div class="card-body">
+                <div id="library-setup-banner" class="alert alert-warning d-none" role="alert">
+                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                        <div>
+                            <strong>Calibre library not configured.</strong>
+                            <div class="small mt-1" id="library-setup-message">You can auto-detect an existing library or create a new one now.</div>
+                        </div>
+                        <button class="btn btn-sm btn-warning" id="btn-init-library">
+                            <i class="bi bi-folder-plus me-1"></i>Setup Library
+                        </button>
+                    </div>
+                </div>
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-book me-2"></i>Calibre Library
@@ -117,46 +216,43 @@
                 <div class="calibre-grid" id="calibre-book-list">
                     <div class="text-secondary text-center py-4">Loading Calibre database...</div>
                 </div>
-                    </div>
                 </div>
             </div>
 
-            <div class="col-xl-4">
-                <div class="dashboard-side-panel">
-                    <div class="card glass-card mb-3">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <h5 class="card-title mb-0"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
-                                <span id="download-queue-badge" class="badge text-bg-info" style="display:none;">Queue: 0</span>
-                            </div>
-                            <div class="input-group">
-                                <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
-                                <button class="btn btn-success" id="download-btn">
-                                    <i class="bi bi-download me-1"></i>Queue Download
-                                </button>
-                            </div>
-                            <div class="progress mt-2" style="height:5px; display:none;" id="download-progress-container">
-                                <div class="progress-bar bg-success" id="download-progress-bar" style="width:0%"></div>
-                            </div>
-                            <div id="download-message" class="small mt-2 fw-medium"></div>
-                            <div id="download-queue-list" class="download-queue-list mt-2"></div>
+            <div class="card glass-card mt-3" id="section-settings">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h5 class="card-title mb-0"><i class="bi bi-gear me-2"></i>Settings</h5>
+                        <span class="small text-secondary">Library and device controls</span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-secondary w-100" id="btn-settings-refresh">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh Library
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-warning w-100" id="btn-settings-library">
+                                <i class="bi bi-folder-plus me-1"></i>Setup Library
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-outline-danger w-100" id="btn-settings-disconnect">
+                                <i class="bi bi-eject-fill me-1"></i>Disconnect Device
+                            </button>
                         </div>
                     </div>
-
-                    <div class="card glass-card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
-                                <span class="small text-secondary">Live updates</span>
-                            </div>
-                            <div id="task-history-list" class="task-history-list">
-                                <div class="text-secondary text-center py-3">No activity yet.</div>
-                            </div>
+                    <div class="settings-divider"></div>
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div class="small text-secondary">Density Preset</div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Density preset">
+                            <button type="button" class="btn btn-outline-secondary" id="btn-density-compact">CWA Compact</button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-density-comfortable">CWA Comfortable</button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <!-- Book Action Modal (Bootstrap) -->
@@ -189,18 +285,22 @@
                     </div>
                     <input type="file" id="cover-upload-input" accept="image/*" style="display:none;">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-secondary" id="btn-change-cover">
+                        <button class="btn btn-outline-secondary modal-action-btn" id="btn-change-cover">
                             <i class="bi bi-image me-1"></i>Change Cover
                         </button>
-                        <button class="btn btn-outline-light" id="btn-edit-metadata">
+                        <button class="btn btn-outline-light modal-action-btn" id="btn-edit-metadata">
                             <i class="bi bi-pencil-square me-1"></i>Edit Metadata
                         </button>
-                        <button class="btn btn-info" id="btn-read">
+                        <button class="btn btn-info modal-action-btn" id="btn-read">
                             <i class="bi bi-book me-1"></i>Read
                         </button>
-                        <button class="btn btn-success" id="btn-send-epub">Send EPUB</button>
-                        <button class="btn btn-warning" id="btn-send-kepub">Convert & Send KEPUB</button>
-                        <button class="btn btn-danger" id="btn-delete-book">
+                        <button class="btn btn-success modal-action-btn" id="btn-send-epub">
+                            <i class="bi bi-send me-1"></i>Send EPUB
+                        </button>
+                        <button class="btn btn-warning modal-action-btn" id="btn-send-kepub">
+                            <i class="bi bi-arrow-repeat me-1"></i>Convert & Send KEPUB
+                        </button>
+                        <button class="btn btn-danger modal-action-btn" id="btn-delete-book">
                             <i class="bi bi-trash me-1"></i>Delete from Library
                         </button>
                     </div>

@@ -2,18 +2,60 @@ const BOOK_ID = Number(document.body.dataset.bookId || 0);
 const STORE_KEY = `reader_${BOOK_ID}`;
 
 const THEMES = {
-    dark: { bg: '#0f172a', fg: '#cbd5e1', heading: '#f1f5f9', link: '#60a5fa', pBg: '#0f172a' },
-    sepia: { bg: '#f5f0e1', fg: '#5c4a32', heading: '#3b2a0e', link: '#8b6914', pBg: '#f5f0e1' },
-    light: { bg: '#fafafa', fg: '#1e293b', heading: '#0f172a', link: '#2563eb', pBg: '#fafafa' }
+    dark: {
+        bg: '#1b1e25',
+        fg: '#e5e9f0',
+        heading: '#f4f6fa',
+        link: '#ffb74d',
+        panel: '#262b34',
+        panelText: '#e5e9f0',
+        progressTrack: 'rgba(255,255,255,0.06)'
+    },
+    sepia: {
+        bg: '#f2e8d4',
+        fg: '#4e3f2a',
+        heading: '#2f2517',
+        link: '#a86c13',
+        panel: '#e7d9bf',
+        panelText: '#4e3f2a',
+        progressTrack: 'rgba(60,40,15,0.12)'
+    },
+    light: {
+        bg: '#f5f7fb',
+        fg: '#1f2937',
+        heading: '#111827',
+        link: '#d97706',
+        panel: '#e9edf5',
+        panelText: '#1f2937',
+        progressTrack: 'rgba(17,24,39,0.12)'
+    }
 };
-const BARS = { dark: '#1e293b', sepia: '#e8dcc8', light: '#f0f0f0' };
-const BARTX = { dark: '#e2e8f0', sepia: '#5c4a32', light: '#1e293b' };
 
 let fontSize = 100;
 let fontFamily = "'Lora', Georgia, serif";
 let currentTheme = 'dark';
 let book = null;
 let rendition = null;
+
+function calculateReaderViewport() {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+    let sidePadding = 96;
+    let maxReadWidth = 920;
+
+    if (viewportWidth <= 768) {
+        sidePadding = 44;
+        maxReadWidth = viewportWidth - sidePadding;
+    } else if (viewportWidth <= 1199) {
+        sidePadding = 120;
+        maxReadWidth = 860;
+    }
+
+    const width = Math.max(320, Math.min(maxReadWidth, viewportWidth - sidePadding));
+    const height = Math.max(320, viewportHeight - 50);
+    return { width, height };
+}
 
 try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY + '_prefs') || '{}');
@@ -36,7 +78,7 @@ function buildCSS() {
             text-align: justify !important;
             word-wrap: break-word !important; overflow-wrap: break-word !important;
             hyphens: auto !important;
-            padding: 1.2rem 2.5rem !important;
+            padding: 1.2rem 2.2rem !important;
             -webkit-font-smoothing: antialiased !important;
         }
         p { margin: 0 0 0.65em !important; text-align: justify !important; }
@@ -97,12 +139,12 @@ function applyTheme(name) {
     document.body.style.background = t.bg;
     document.getElementById('reader').style.background = t.bg;
     const bar = document.getElementById('topbar');
-    bar.style.background = BARS[name];
-    bar.style.color = BARTX[name];
+    bar.style.background = t.panel;
+    bar.style.color = t.panelText;
     bar.querySelectorAll('.btn, span').forEach((el) => {
-        el.style.color = BARTX[name];
+        el.style.color = t.panelText;
     });
-    document.getElementById('progress-bar').style.background = name === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)';
+    document.getElementById('progress-bar').style.background = t.progressTrack;
     injectStyles();
     savePrefs();
 }
@@ -183,6 +225,39 @@ function bindUiEvents() {
     if (fontSelect) fontSelect.addEventListener('change', (e) => changeFont(e.target.value));
 }
 
+function initTopbarVisibility() {
+    const topbar = document.getElementById('topbar');
+    const hoverZone = document.getElementById('topbar-hover-zone');
+    if (!topbar || !hoverZone) return;
+
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
+        document.body.classList.add('topbar-visible');
+        return;
+    }
+
+    let hideTimer = null;
+
+    const showTopbar = () => {
+        if (hideTimer) {
+            clearTimeout(hideTimer);
+            hideTimer = null;
+        }
+        document.body.classList.add('topbar-visible');
+    };
+
+    const hideTopbarSoon = () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+            document.body.classList.remove('topbar-visible');
+        }, 120);
+    };
+
+    hoverZone.addEventListener('mouseenter', showTopbar);
+    topbar.addEventListener('mouseenter', showTopbar);
+    hoverZone.addEventListener('mouseleave', hideTopbarSoon);
+    topbar.addEventListener('mouseleave', hideTopbarSoon);
+}
+
 function saveLoc(cfi) {
     try {
         localStorage.setItem(STORE_KEY, cfi);
@@ -204,14 +279,12 @@ async function loadBook() {
         const buffer = await res.arrayBuffer();
         document.getElementById('loader').remove();
 
-        const BAR_H = 50;
-        const W = window.innerWidth - 48 * 2;
-        const H = window.innerHeight - BAR_H;
+        const viewport = calculateReaderViewport();
 
         book = ePub(buffer);
         rendition = book.renderTo('reader', {
-            width: W,
-            height: H,
+            width: viewport.width,
+            height: viewport.height,
             spread: 'none',
             flow: 'paginated',
             allowScriptedContent: true
@@ -271,9 +344,8 @@ async function loadBook() {
         applyFontSize();
 
         window.addEventListener('resize', () => {
-            const w = window.innerWidth - 48 * 2;
-            const h = window.innerHeight - 50;
-            rendition.resize(w, h);
+            const nextViewport = calculateReaderViewport();
+            rendition.resize(nextViewport.width, nextViewport.height);
         });
     } catch (err) {
         document.getElementById('loader').innerHTML =
@@ -294,6 +366,7 @@ function initReader() {
     });
 
     bindUiEvents();
+    initTopbarVisibility();
     applyTheme(currentTheme);
     loadBook();
 }

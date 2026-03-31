@@ -1,3 +1,32 @@
+function initSidebarNavigation() {
+    const navLinks = Array.from(document.querySelectorAll('.cwa-nav-item[data-section]'));
+    if (!navLinks.length) return;
+
+    const sectionMap = navLinks
+        .map((link) => {
+            const sectionId = link.dataset.section;
+            const sectionEl = document.getElementById(sectionId);
+            return sectionEl ? { link, sectionEl } : null;
+        })
+        .filter(Boolean);
+
+    if (!sectionMap.length) return;
+
+    navLinks.forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const sectionId = link.dataset.section;
+            const target = document.getElementById(sectionId);
+            if (!target) return;
+
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            navLinks.forEach((item) => item.classList.remove('active'));
+            link.classList.add('active');
+        });
+    });
+
+}
+
 function bindUiEvents() {
     const calibreSearch = document.getElementById('calibre-search');
     if (calibreSearch) calibreSearch.addEventListener('input', onSearchInput);
@@ -42,8 +71,26 @@ function bindUiEvents() {
     const refreshBtn = document.getElementById('btn-refresh-books');
     if (refreshBtn) refreshBtn.addEventListener('click', fetchCalibreBooks);
 
+    const settingsRefreshBtn = document.getElementById('btn-settings-refresh');
+    if (settingsRefreshBtn) settingsRefreshBtn.addEventListener('click', fetchCalibreBooks);
+
+    const setupLibraryBtn = document.getElementById('btn-init-library');
+    if (setupLibraryBtn) setupLibraryBtn.addEventListener('click', setupCalibreLibrary);
+
+    const settingsLibraryBtn = document.getElementById('btn-settings-library');
+    if (settingsLibraryBtn) settingsLibraryBtn.addEventListener('click', setupCalibreLibrary);
+
     const ejectBtn = document.getElementById('eject-btn');
     if (ejectBtn) ejectBtn.addEventListener('click', disconnectKobo);
+
+    const settingsDisconnectBtn = document.getElementById('btn-settings-disconnect');
+    if (settingsDisconnectBtn) settingsDisconnectBtn.addEventListener('click', disconnectKobo);
+
+    const densityCompactBtn = document.getElementById('btn-density-compact');
+    if (densityCompactBtn) densityCompactBtn.addEventListener('click', () => applyDensityPreset('compact'));
+
+    const densityComfortableBtn = document.getElementById('btn-density-comfortable');
+    if (densityComfortableBtn) densityComfortableBtn.addEventListener('click', () => applyDensityPreset('comfortable'));
 
     const downloadBtn = document.getElementById('download-btn');
     if (downloadBtn) downloadBtn.addEventListener('click', downloadBook);
@@ -105,4 +152,7 @@ function bindUiEvents() {
             if (queueId) cancelQueuedDownload(queueId);
         });
     }
+
+    initSidebarNavigation();
+    initDensityPreset();
 }

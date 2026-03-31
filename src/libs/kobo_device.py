@@ -212,7 +212,7 @@ class KoboSyncServer:
 
             # 5. Set Library Info
             self._send_packet(sock, OP_SET_LIBRARY_INFO, {
-                "libraryName": "UNCaGED Python Dashboard",
+                "libraryName": "Calibre Web Management",
                 "libraryUuid": "12345-abcde",
                 "fieldMetadata": {}
             })

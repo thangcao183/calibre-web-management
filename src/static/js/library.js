@@ -1,3 +1,82 @@
+function showLibrarySetupBanner(message) {
+    const banner = document.getElementById('library-setup-banner');
+    const messageEl = document.getElementById('library-setup-message');
+    if (!banner) return;
+
+    banner.classList.remove('d-none');
+    if (messageEl && message) messageEl.textContent = message;
+}
+
+function hideLibrarySetupBanner() {
+    const banner = document.getElementById('library-setup-banner');
+    if (!banner) return;
+    banner.classList.add('d-none');
+}
+
+async function setupCalibreLibrary() {
+    let statusData = null;
+    try {
+        const statusRes = await fetch('/api/library/status');
+        statusData = await statusRes.json();
+    } catch (e) {
+        // Continue with defaults if status endpoint is temporarily unavailable.
+    }
+
+    const defaultDir = statusData?.configured_library_dir || '/home/wolf/Calibre Library';
+    const result = await Swal.fire({
+        title: 'Setup Calibre Library',
+        html: `
+            <div class="text-start small mb-2">If an existing library is found, it will be attached automatically.</div>
+            <input id="swal-library-dir" class="swal2-input" placeholder="Library path" value="${defaultDir}">
+            <label class="swal2-checkbox" style="display:flex;align-items:center;justify-content:flex-start;gap:8px;">
+                <input id="swal-auto-detect-lib" type="checkbox" checked>
+                <span>Auto-detect existing metadata.db before creating new</span>
+            </label>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Apply',
+        preConfirm: () => {
+            const path = document.getElementById('swal-library-dir')?.value?.trim() || '';
+            const autoDetect = Boolean(document.getElementById('swal-auto-detect-lib')?.checked);
+            if (!path) {
+                Swal.showValidationMessage('Library path is required');
+                return false;
+            }
+            return { path, autoDetect };
+        }
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+
+    const setupBtn = document.getElementById('btn-init-library');
+    if (setupBtn) setupBtn.disabled = true;
+
+    try {
+        const res = await fetch('/api/library/setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                library_dir: result.value.path,
+                auto_detect: result.value.autoDetect
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+        }
+
+        hideLibrarySetupBanner();
+        await showSuccess('Library ready', data.message || `Using ${data.library_dir}`);
+        currentPage = 1;
+        fetchCalibreBooks();
+    } catch (e) {
+        showLibrarySetupBanner('Library setup failed. Please verify path and permissions, then retry.');
+        showError('Library setup failed', e.message || 'Could not initialize Calibre library.');
+    } finally {
+        if (setupBtn) setupBtn.disabled = false;
+    }
+}
+
 function renderCalibreBooks(data) {
     const list = document.getElementById('calibre-book-list');
     list.innerHTML = '';
@@ -29,10 +108,16 @@ function renderCalibreBooks(data) {
         list.innerHTML += `
             <div class="calibre-book ${isSelected ? 'selected' : ''}" data-book-id="${book.id}" data-book-title="${te}" data-book-author="${ae}" data-book-fmts="${fmts}">
                 <div class="book-checkbox"></div>
-                <img src="${cover}" class="calibre-cover" loading="lazy" alt="" onerror="this.src='/static/placeholder.jpg'">
+                <img src="${cover}" class="calibre-cover" loading="lazy" alt="">
                 <div class="calibre-title" title="${te}">${book.title}</div>
                 <div class="calibre-author">${book.author}</div>
             </div>`;
+    });
+
+    list.querySelectorAll('.calibre-cover').forEach((img) => {
+        img.addEventListener('error', () => {
+            img.src = '/static/placeholder.jpg';
+        }, { once: true });
     });
 }
 
@@ -197,10 +282,17 @@ async function fetchCalibreBooks() {
         const data = await res.json();
 
         if (!data.success) {
-            document.getElementById('calibre-book-list').innerHTML = `<p class="text-secondary">${data.error}</p>`;
+            const message = String(data.error || 'Library error');
+            if (message.toLowerCase().includes('library not found')) {
+                showLibrarySetupBanner('No metadata.db detected. Auto-detect an existing library or create a new one.');
+                document.getElementById('calibre-book-list').innerHTML = '<div class="library-empty-state"><strong>Calibre library not found.</strong>Use the Setup Library button to continue.</div>';
+            } else {
+                document.getElementById('calibre-book-list').innerHTML = `<p class="text-secondary">${message}</p>`;
+            }
             return;
         }
 
+        hideLibrarySetupBanner();
         updateActiveFilterBadge();
         renderCalibreBooks(data);
     } catch (e) {

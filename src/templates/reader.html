@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} — Reader</title>
-    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/reader.css">
     <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 </head>
 <body data-book-id="{{ book_id }}">
 
+<div id="topbar-hover-zone" aria-hidden="true"></div>
 <div id="topbar">
     <div class="bar-left">
         <button class="btn" id="btn-back" title="Back">← Back</button>
@@ -38,7 +41,7 @@
 
 <div id="progress-bar"><div id="progress-fill"></div></div>
 
-<div id="reader-wrap container">
+<div id="reader-wrap">
     <button class="nav-btn" id="prev-btn">‹</button>
     <div id="reader"><div id="loader"><div class="spinner"></div>Loading...</div></div>
     <button class="nav-btn" id="next-btn">›</button>

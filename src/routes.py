@@ -15,7 +15,10 @@ from libs.scraper_task import ScraperTask
 from libs.text_proc import remove_accents_and_special_chars
 
 # --- Configuration ---
-CALIBRE_LIBRARY_DIR = os.path.expanduser("~/Calibre Library")
+CALIBRE_LIBRARY_DIR = os.path.expanduser(os.getenv("CALIBRE_LIBRARY_DIR", "~/Calibre Library"))
+CALIBRE_LIBRARY_SEARCH_ROOT = os.path.expanduser(
+    os.getenv("CALIBRE_LIBRARY_SEARCH_ROOT", os.path.dirname(CALIBRE_LIBRARY_DIR) or "~")
+)
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 reader_bp = Blueprint('reader', __name__, url_prefix='/reader')
@@ -25,6 +28,7 @@ CALIBRE_ADD_TIMEOUT = int(os.getenv("CALIBRE_ADD_TIMEOUT_SECONDS", "120"))
 DOWNLOAD_QUEUE = deque()
 DOWNLOAD_QUEUE_LOCK = threading.Lock()
 DOWNLOAD_WORKER_RUNNING = False
+LIBRARY_PATH_LOCK = threading.Lock()
 
 kobo_server.update_state(
     download_queue_count=0,
@@ -42,6 +46,65 @@ def queue_items_payload():
 def queue_urls_payload(items):
     return [item["url"] for item in items]
 
+
+def metadata_db_path(library_dir=None):
+    target_dir = library_dir or CALIBRE_LIBRARY_DIR
+    return os.path.join(os.path.expanduser(target_dir), 'metadata.db')
+
+
+def detect_calibre_library(search_root=None):
+    """Recursively find candidate libraries and pick the one with largest metadata.db."""
+    root = os.path.expanduser(search_root or CALIBRE_LIBRARY_SEARCH_ROOT)
+    if not os.path.isdir(root):
+        return None
+
+    best = None
+    for current_root, _, files in os.walk(root):
+        if 'metadata.db' not in files:
+            continue
+        db_file = os.path.join(current_root, 'metadata.db')
+        try:
+            size = os.path.getsize(db_file)
+        except OSError:
+            continue
+
+        if best is None or size > best[1]:
+            best = (current_root, size)
+
+    return best[0] if best else None
+
+
+def initialize_calibre_library(library_dir):
+    """Bootstrap a new Calibre library by invoking calibredb on an empty folder."""
+    target_dir = os.path.expanduser(library_dir)
+    os.makedirs(target_dir, exist_ok=True)
+
+    command = ['calibredb', '--with-library', target_dir, 'list']
+    result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout or 'Unknown calibredb error').strip()
+        raise RuntimeError(stderr)
+
+    if not os.path.exists(metadata_db_path(target_dir)):
+        raise RuntimeError('calibredb completed but metadata.db was not created')
+
+    return target_dir
+
+
+def ensure_library_path_resolution():
+    """Resolve CALIBRE_LIBRARY_DIR to an existing library when possible."""
+    global CALIBRE_LIBRARY_DIR
+    with LIBRARY_PATH_LOCK:
+        if os.path.exists(metadata_db_path(CALIBRE_LIBRARY_DIR)):
+            return CALIBRE_LIBRARY_DIR
+
+        detected = detect_calibre_library()
+        if detected:
+            CALIBRE_LIBRARY_DIR = detected
+            return CALIBRE_LIBRARY_DIR
+
+    return None
+
 @api_bp.before_request
 def check_login():
     """Bảo vệ toàn bộ API bằng session, ngoại trừ whitelist cho Kobo và Dashboard UI."""
@@ -54,7 +117,8 @@ def check_login():
 
 def get_db_connection():
     """Helper kết nối database Calibre ở chế độ Read-Only."""
-    db_path = os.path.join(CALIBRE_LIBRARY_DIR, 'metadata.db')
+    ensure_library_path_resolution()
+    db_path = metadata_db_path(CALIBRE_LIBRARY_DIR)
     if not os.path.exists(db_path):
         return None
     try:
@@ -161,6 +225,64 @@ def get_book_folder_path(book_id):
         return os.path.join(CALIBRE_LIBRARY_DIR, row[0])
     finally:
         conn.close()
+
+
+@api_bp.route('/library/status')
+def api_library_status():
+    before_resolution = os.path.expanduser(CALIBRE_LIBRARY_DIR)
+    resolved = ensure_library_path_resolution()
+    configured = os.path.expanduser(CALIBRE_LIBRARY_DIR)
+    metadata_exists = os.path.exists(metadata_db_path(configured))
+    return jsonify({
+        "success": True,
+        "configured_library_dir": configured,
+        "search_root": os.path.expanduser(CALIBRE_LIBRARY_SEARCH_ROOT),
+        "library_dir": resolved or configured,
+        "metadata_exists": metadata_exists,
+        "auto_detected": bool(resolved and before_resolution != configured),
+    })
+
+
+@api_bp.route('/library/setup', methods=['POST'])
+def api_library_setup():
+    data = request.json or {}
+    requested_dir = (data.get('library_dir') or '').strip()
+    auto_detect = bool(data.get('auto_detect', True))
+    search_root = (data.get('search_root') or '').strip() or CALIBRE_LIBRARY_SEARCH_ROOT
+
+    global CALIBRE_LIBRARY_DIR
+    with LIBRARY_PATH_LOCK:
+        if auto_detect:
+            detected = detect_calibre_library(search_root)
+            if detected and os.path.exists(metadata_db_path(detected)):
+                CALIBRE_LIBRARY_DIR = detected
+                return jsonify({
+                    "success": True,
+                    "created": False,
+                    "auto_detected": True,
+                    "library_dir": CALIBRE_LIBRARY_DIR,
+                    "message": "Found existing Calibre library and attached it."
+                })
+
+        target_dir = os.path.expanduser(requested_dir or CALIBRE_LIBRARY_DIR)
+        try:
+            initialize_calibre_library(target_dir)
+        except RuntimeError as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({"success": False, "error": "Library bootstrap timed out"}), 504
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+        CALIBRE_LIBRARY_DIR = target_dir
+        kobo_server.add_history("system", "success", f"Initialized Calibre library at {target_dir}")
+        return jsonify({
+            "success": True,
+            "created": True,
+            "auto_detected": False,
+            "library_dir": CALIBRE_LIBRARY_DIR,
+            "message": "Created a new Calibre library successfully."
+        })
 
 # --- Library Endpoints ---
 

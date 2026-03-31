@@ -19,7 +19,7 @@ logger = logging.getLogger("waitress")
 
 if __name__ == "__main__":
     print("-" * 50)
-    print("🚀 UNCaGED Dashboard starting in PRODUCTION mode...")
+    print("Calibre Web Management starting in PRODUCTION mode...")
     
     # Start background threads (TCP listener for Kobo and File Watcher)
     logger.info("Starting background tasks...")
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     start_watcher()
     
     port = int(os.getenv("PORT", 5000))
-    print(f"🌍 Serving on http://0.0.0.0:{port}")
+    print(f"Serving on http://0.0.0.0:{port}")
     print("-" * 50)
     
     # Run using Waitress (Multi-threaded production WSGI server)

@@ -143,6 +143,7 @@ function renderConnectionState(data) {
         if (instructionBox) instructionBox.style.opacity = '0.4';
         const ejectBtn = document.getElementById('eject-btn');
         if (ejectBtn) ejectBtn.style.display = 'inline-block';
+        updateMiniStatsDevice('Connected');
     } else {
         if (card) card.style.display = 'none';
         dot.classList.remove('connected');
@@ -152,6 +153,7 @@ function renderConnectionState(data) {
         if (instructionBox) instructionBox.style.opacity = '1';
         const ejectBtn = document.getElementById('eject-btn');
         if (ejectBtn) ejectBtn.style.display = 'none';
+        updateMiniStatsDevice('Idle');
     }
 
     if (data.auto_sync !== undefined) {
@@ -163,7 +165,7 @@ function renderConnectionState(data) {
 function renderDeviceState(data) {
     const deviceType = document.getElementById('device-type');
     if (!deviceType) return;
-    deviceType.textContent = data.device_info || 'Kobo UNCaGED';
+    deviceType.textContent = data.device_info || 'Kobo Device';
     deviceType.className = 'ms-2 fw-semibold';
 }
 
@@ -191,6 +193,8 @@ function renderDownloadState(data) {
             queueBadge.textContent = 'Queue: 0';
         }
     }
+
+    updateMiniStatsQueue(queueCount);
 
     renderDownloadQueue(data);
 
@@ -269,5 +273,6 @@ function initRealtime() {
             status.textContent = 'Server Offline';
             status.className = 'small fw-semibold text-danger';
         }
+        updateMiniStatsDevice('Offline', 'sse');
     };
 }
