@@ -132,6 +132,24 @@ function handleBookClick(e, id, te, ae, fmts) {
     }
 }
 
+function downloadCalibreBook(bookId, title = '') {
+    if (!bookId) return;
+
+    const link = document.createElement('a');
+    link.href = `/api/calibre/download/${bookId}`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const label = (title || '').trim();
+    if (label) {
+        showSuccess('Download started', label);
+    } else {
+        showSuccess('Download started');
+    }
+}
+
 function toggleSelectMode() {
     isSelectMode = !isSelectMode;
     selectedIds.clear();

@@ -25,12 +25,27 @@ async function openModal(id, title, author, fmtsStr) {
     document.getElementById('modal-tags').innerHTML = '<span class="text-secondary">Tags: Loading...</span>';
     document.getElementById('modal-description').textContent = 'Loading metadata...';
 
+    const updateSendButtons = (formats) => {
+        const normalized = (formats || []).map((fmt) => String(fmt || '').toLowerCase());
+        const hasSendable = normalized.some((fmt) => ['epub', 'kepub', 'cbz', 'mobi', 'pdf'].includes(fmt));
+        const hasEpub = normalized.includes('epub');
+        const hasKepub = normalized.includes('kepub');
+
+        const sendEbookBtn = document.getElementById('btn-send-ebook');
+        const sendKepubBtn = document.getElementById('btn-send-kepub');
+
+        if (sendEbookBtn) {
+            sendEbookBtn.style.display = hasSendable ? '' : 'none';
+            sendEbookBtn.innerHTML = '<i class="bi bi-send me-1"></i>Send Ebook';
+        }
+        if (sendKepubBtn) {
+            sendKepubBtn.style.display = (hasEpub || hasKepub) ? '' : 'none';
+            sendKepubBtn.textContent = hasKepub ? 'Send KEPUB' : 'Convert & Send KEPUB';
+        }
+    };
+
     const fmts = fmtsStr ? fmtsStr.split(',') : [];
-    const hasEpub = fmts.includes('epub');
-    const hasKepub = fmts.includes('kepub');
-    document.getElementById('btn-send-epub').style.display = hasEpub ? '' : 'none';
-    document.getElementById('btn-send-kepub').style.display = (hasEpub || hasKepub) ? '' : 'none';
-    document.getElementById('btn-send-kepub').textContent = hasKepub ? 'Send KEPUB' : 'Convert & Send KEPUB';
+    updateSendButtons(fmts);
 
     getModal().show();
 
@@ -71,6 +86,7 @@ async function openModal(id, title, author, fmtsStr) {
             ? book.tags.map(tag => `<span class="modal-format-badge">${tag}</span>`).join('')
             : '<span class="text-secondary">Tags: --</span>';
         document.getElementById('modal-description').textContent = cleanDescription || 'No description available.';
+        updateSendButtons(book.formats || []);
     } catch (e) {
         if (requestToken !== modalRequestToken || currentBookId !== id) return;
         document.getElementById('modal-path').textContent = 'Path: --';
@@ -210,7 +226,7 @@ async function editMetadata() {
 
 function syncCalibre(convertKepub, triggerBtn = null) {
     if (!currentBookId) return;
-    const btn = triggerBtn || document.getElementById(convertKepub ? 'btn-send-kepub' : 'btn-send-epub');
+    const btn = triggerBtn || document.getElementById(convertKepub ? 'btn-send-kepub' : 'btn-send-ebook');
     const orig = btn.textContent;
     btn.textContent = 'Sending...';
     btn.disabled = true;
@@ -222,7 +238,8 @@ function syncCalibre(convertKepub, triggerBtn = null) {
     .then(r => r.json())
     .then(d => {
         if (d.success) {
-            showSuccess('Queued', 'Book has been queued for sync!');
+            const formatLabel = d.format ? ` (${d.format})` : '';
+            showSuccess('Queued', `Book has been queued for sync${formatLabel}!`);
             closeModal();
         } else {
             showError('Sync failed', d.error);

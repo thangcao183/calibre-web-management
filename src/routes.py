@@ -23,7 +23,7 @@ CALIBRE_LIBRARY_SEARCH_ROOT = os.path.expanduser(
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 reader_bp = Blueprint('reader', __name__, url_prefix='/reader')
 
-ALLOWED_UPLOAD_EXTENSIONS = {'.epub', '.kepub', '.kepub.epub'}
+ALLOWED_UPLOAD_EXTENSIONS = {'.epub', '.kepub', '.kepub.epub', '.cbz', '.mobi', '.pdf'}
 CALIBRE_ADD_TIMEOUT = int(os.getenv("CALIBRE_ADD_TIMEOUT_SECONDS", "120"))
 DOWNLOAD_QUEUE = deque()
 DOWNLOAD_QUEUE_LOCK = threading.Lock()
@@ -130,7 +130,7 @@ def get_db_connection():
         return None
 
 def is_allowed_upload(filename):
-    """Cho phép upload EPUB và các biến thể KEPUB phổ biến."""
+    """Cho phép upload ebook formats được hỗ trợ từ UI."""
     if not filename:
         return False
 
@@ -479,6 +479,69 @@ def api_calibre_epub(book_id):
     finally: conn.close()
     return "Not found", 404
 
+
+@api_bp.route('/calibre/download/<int:book_id>')
+def api_calibre_download(book_id):
+    """Download preferred available format for a Calibre book as attachment."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"success": False, "error": "Calibre library not found"}), 404
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute('PRAGMA query_only = ON')
+        cursor.execute(
+            'SELECT b.path, b.title, d.format, d.name FROM books b JOIN data d ON b.id = d.book WHERE b.id = ?',
+            (book_id,)
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return jsonify({"success": False, "error": "Book format not found"}), 404
+
+        book_rel_path = rows[0][0]
+        book_title = (rows[0][1] or f"book_{book_id}").strip()
+        file_candidates = []
+
+        for _, _, fmt, name in rows:
+            fmt_upper = (fmt or '').upper()
+            base_name = name or ''
+            if not base_name:
+                continue
+
+            if fmt_upper == 'KEPUB':
+                file_candidates.append((fmt_upper, f"{base_name}.kepub.epub"))
+                file_candidates.append((fmt_upper, f"{base_name}.kepub"))
+            else:
+                fmt_lower = fmt_upper.lower()
+                if fmt_lower:
+                    file_candidates.append((fmt_upper, f"{base_name}.{fmt_lower}"))
+                else:
+                    file_candidates.append((fmt_upper, base_name))
+
+        preferred_order = {'EPUB': 0, 'KEPUB': 1, 'PDF': 2}
+        file_candidates.sort(key=lambda item: preferred_order.get(item[0], 99))
+
+        for fmt, filename in file_candidates:
+            source_path = os.path.join(CALIBRE_LIBRARY_DIR, book_rel_path, filename)
+            if not os.path.exists(source_path):
+                continue
+
+            safe_title = ''.join(ch for ch in book_title if ch not in '<>:"/\\|?*').strip() or f"book_{book_id}"
+            if fmt == 'KEPUB':
+                download_name = f"{safe_title}.kepub.epub"
+            elif fmt == 'PDF':
+                download_name = f"{safe_title}.pdf"
+            else:
+                download_name = f"{safe_title}.epub"
+
+            return send_file(source_path, as_attachment=True, download_name=download_name)
+
+        return jsonify({"success": False, "error": "Book file missing on disk"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
 # --- Sync & Action Endpoints ---
 
 @api_bp.route('/sync_calibre', methods=['POST'])
@@ -500,26 +563,54 @@ def api_sync_calibre():
         
         book_rel_path = b_row[0]
         cursor.execute('SELECT format, name FROM data WHERE book = ?', (book_id,))
-        formats = {fmt: name for fmt, name in cursor.fetchall()}
+        formats = {str(fmt or '').upper(): name for fmt, name in cursor.fetchall()}
+
+        def resolve_existing_file(fmt_upper, base_name):
+            if not base_name:
+                return None, None
+
+            if fmt_upper == 'KEPUB':
+                candidates = [
+                    f"{base_name}.kepub.epub",
+                    f"{base_name}.kepub"
+                ]
+            else:
+                ext = fmt_upper.lower()
+                candidates = [f"{base_name}.{ext}"] if ext else [base_name]
+
+            for filename in candidates:
+                candidate_path = os.path.join(CALIBRE_LIBRARY_DIR, book_rel_path, filename)
+                if os.path.exists(candidate_path):
+                    return candidate_path, filename
+
+            return None, None
         
         source_path = None
         target_name = None
+        sent_format = None
 
         if convert:
             if 'KEPUB' in formats:
-                target_name = f"{formats['KEPUB']}.kepub"
-                source_path = os.path.join(CALIBRE_LIBRARY_DIR, book_rel_path, target_name)
+                source_path, target_name = resolve_existing_file('KEPUB', formats.get('KEPUB'))
+                if source_path:
+                    sent_format = 'KEPUB'
             elif 'EPUB' in formats:
-                epub_path = os.path.join(CALIBRE_LIBRARY_DIR, book_rel_path, f"{formats['EPUB']}.epub")
-                target_name = f"tmp_{book_id}.kepub.epub"
-                source_path = os.path.join(kobo_server.ebook_dir, target_name)
-                import kepubify
-                kepubify.convert_to_kepub(epub_path, source_path)
+                epub_path, _ = resolve_existing_file('EPUB', formats.get('EPUB'))
+                if epub_path:
+                    target_name = f"tmp_{book_id}.kepub.epub"
+                    source_path = os.path.join(kobo_server.ebook_dir, target_name)
+                    import kepubify
+                    kepubify.convert_to_kepub(epub_path, source_path)
+                    sent_format = 'KEPUB'
         else:
-            fmt = 'EPUB' if 'EPUB' in formats else 'KEPUB' if 'KEPUB' in formats else None
-            if fmt:
-                target_name = f"{formats[fmt]}.{fmt.lower()}"
-                source_path = os.path.join(CALIBRE_LIBRARY_DIR, book_rel_path, target_name)
+            preferred_formats = ['EPUB', 'KEPUB', 'CBZ', 'MOBI', 'PDF']
+            for fmt in preferred_formats:
+                if fmt not in formats:
+                    continue
+                source_path, target_name = resolve_existing_file(fmt, formats.get(fmt))
+                if source_path:
+                    sent_format = fmt
+                    break
 
         if not source_path or not os.path.exists(source_path):
             return jsonify({"success": False, "error": "File not found on disk"})
@@ -534,7 +625,7 @@ def api_sync_calibre():
             
         kobo_server.books_to_sync.append(final_filename)
         kobo_server.add_history("sync", "success", f"Queued {final_filename} for Kobo sync")
-        return jsonify({"success": True})
+        return jsonify({"success": True, "format": sent_format, "filename": final_filename})
     except Exception as e:
         kobo_server.add_history("sync", "error", str(e))
         return jsonify({"success": False, "error": str(e)})
@@ -698,7 +789,7 @@ def api_upload():
             results.append({
                 "filename": upload.filename,
                 "success": False,
-                "error": "Only EPUB/KEPUB files are supported"
+                "error": "Only EPUB/KEPUB/CBZ/MOBI/PDF files are supported"
             })
             continue
 
@@ -713,16 +804,18 @@ def api_upload():
                 temp_path = temp_file.name
             upload.save(temp_path)
 
-            metadata = extract_epub_metadata(temp_path)
-            duplicate = find_duplicate_book(metadata["title"], metadata["author"])
-            if duplicate:
-                results.append({
-                    "filename": upload.filename,
-                    "success": False,
-                    "error": f"Duplicate detected: {duplicate['title']} by {duplicate['author']} (ID {duplicate['id']})"
-                })
-                kobo_server.add_history("upload", "error", f"Duplicate skipped: {upload.filename}")
-                continue
+            # Duplicate detection currently relies on EPUB metadata parsing.
+            if ext in ('.epub', '.kepub', '.kepub.epub'):
+                metadata = extract_epub_metadata(temp_path)
+                duplicate = find_duplicate_book(metadata["title"], metadata["author"])
+                if duplicate:
+                    results.append({
+                        "filename": upload.filename,
+                        "success": False,
+                        "error": f"Duplicate detected: {duplicate['title']} by {duplicate['author']} (ID {duplicate['id']})"
+                    })
+                    kobo_server.add_history("upload", "error", f"Duplicate skipped: {upload.filename}")
+                    continue
 
             run_calibredb_command(['add', temp_path])
             success_count += 1

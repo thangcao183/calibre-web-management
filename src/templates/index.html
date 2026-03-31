@@ -195,7 +195,7 @@
                             <input class="form-check-input" type="checkbox" id="auto-sync-cb">
                             <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
                         </div>
-                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub" multiple style="display:none;">
+                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub,.cbz,.mobi,.pdf" multiple style="display:none;">
                         <button class="btn btn-sm btn-purple" id="btn-upload-trigger">
                             <i class="bi bi-plus-lg"></i> Add
                         </button>
@@ -294,8 +294,11 @@
                         <button class="btn btn-info modal-action-btn" id="btn-read">
                             <i class="bi bi-book me-1"></i>Read
                         </button>
-                        <button class="btn btn-success modal-action-btn" id="btn-send-epub">
-                            <i class="bi bi-send me-1"></i>Send EPUB
+                        <button class="btn btn-primary modal-action-btn" id="btn-download-book">
+                            <i class="bi bi-download me-1"></i>Download
+                        </button>
+                        <button class="btn btn-success modal-action-btn" id="btn-send-ebook">
+                            <i class="bi bi-send me-1"></i>Send Ebook
                         </button>
                         <button class="btn btn-warning modal-action-btn" id="btn-send-kepub">
                             <i class="bi bi-arrow-repeat me-1"></i>Convert & Send KEPUB

@@ -112,8 +112,17 @@ function bindUiEvents() {
         });
     }
 
-    const sendEpubBtn = document.getElementById('btn-send-epub');
-    if (sendEpubBtn) sendEpubBtn.addEventListener('click', () => syncCalibre(false, sendEpubBtn));
+    const downloadBookBtn = document.getElementById('btn-download-book');
+    if (downloadBookBtn) {
+        downloadBookBtn.addEventListener('click', () => {
+            if (!currentBookId) return;
+            const title = currentBookDetail?.title || '';
+            downloadCalibreBook(currentBookId, title);
+        });
+    }
+
+    const sendEbookBtn = document.getElementById('btn-send-ebook');
+    if (sendEbookBtn) sendEbookBtn.addEventListener('click', () => syncCalibre(false, sendEbookBtn));
 
     const sendKepubBtn = document.getElementById('btn-send-kepub');
     if (sendKepubBtn) sendKepubBtn.addEventListener('click', () => syncCalibre(true, sendKepubBtn));
