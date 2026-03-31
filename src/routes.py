@@ -30,6 +30,34 @@ DOWNLOAD_QUEUE_LOCK = threading.Lock()
 DOWNLOAD_WORKER_RUNNING = False
 LIBRARY_PATH_LOCK = threading.Lock()
 
+def get_config_file_path():
+    """Get absolute path to app_settings.json in project root."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, 'app_settings.json')
+
+def load_app_config():
+    """Load application config from app_settings.json."""
+    config_path = get_config_file_path()
+    if not os.path.exists(config_path):
+        return {}
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f) or {}
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+def save_app_config(config):
+    """Save application config to app_settings.json."""
+    config_path = get_config_file_path()
+    try:
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except IOError as e:
+        print(f"[CONFIG] Failed to save config: {e}")
+        return False
+
 kobo_server.update_state(
     download_queue_count=0,
     current_download_url="",
@@ -95,6 +123,13 @@ def ensure_library_path_resolution():
     """Resolve CALIBRE_LIBRARY_DIR to an existing library when possible."""
     global CALIBRE_LIBRARY_DIR
     with LIBRARY_PATH_LOCK:
+        # First, try to load from saved config
+        config = load_app_config()
+        saved_library = config.get('calibre_library_dir')
+        if saved_library and os.path.exists(metadata_db_path(saved_library)):
+            CALIBRE_LIBRARY_DIR = saved_library
+            return CALIBRE_LIBRARY_DIR
+
         if os.path.exists(metadata_db_path(CALIBRE_LIBRARY_DIR)):
             return CALIBRE_LIBRARY_DIR
 
@@ -256,6 +291,9 @@ def api_library_setup():
             detected = detect_calibre_library(search_root)
             if detected and os.path.exists(metadata_db_path(detected)):
                 CALIBRE_LIBRARY_DIR = detected
+                config = load_app_config()
+                config['calibre_library_dir'] = CALIBRE_LIBRARY_DIR
+                save_app_config(config)
                 return jsonify({
                     "success": True,
                     "created": False,
@@ -275,6 +313,9 @@ def api_library_setup():
             return jsonify({"success": False, "error": str(e)}), 500
 
         CALIBRE_LIBRARY_DIR = target_dir
+        config = load_app_config()
+        config['calibre_library_dir'] = CALIBRE_LIBRARY_DIR
+        save_app_config(config)
         kobo_server.add_history("system", "success", f"Initialized Calibre library at {target_dir}")
         return jsonify({
             "success": True,
