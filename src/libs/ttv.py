@@ -97,13 +97,13 @@ class TtvClient(BaseClient):
         self.book_infor.cover = (
             self.parse_infor(soup, "div.book-img > a > img")[0]["src"]
             if self.parse_infor(soup, "div.book-img > a > img")
-            else "https://truyen.tangthuvien.vn/images/default-book.png"
+            else "https://tangthuvien.top/images/default-book.png"
         ) # type: ignore
         self.book_infor.chapter_list = await self.get_chapters_list()
         return self.book_infor
 
     async def get_chapters_list(self) -> [Chapter]:  # type: ignore
-        url = f"https://truyen.tangthuvien.vn/story/chapters?story_id={self.book_infor.book_id}"
+        url = f"https://tangthuvien.top/story/chapters?story_id={self.book_infor.book_id}"
         html = await self.fetch_page(url)
         soup = BeautifulSoup(normalize("NFC", html), "lxml") # type: ignore
         chapters_selector = self.parse_infor(soup, "a")

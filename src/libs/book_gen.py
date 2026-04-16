@@ -162,11 +162,10 @@ class EPUBGenerator:
             c_name, c_title = split_chapter_names(chapter_data["title"])
             chapter.content = f"""
             <body>
-                <div>
-                <fieldset class="title-field">
-                <legend>{c_name}</legend>
+                <div class="chapter-header">
+                <div class="chap-label">{c_name}</div>
                 <h2 class="chap-name">{c_title}</h2>
-                </fieldset>
+                </div>
                 {chapter_data['content']}
             </body>
             """

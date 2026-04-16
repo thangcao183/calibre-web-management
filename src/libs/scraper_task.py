@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,27 @@ class ScraperTask:
         self.ebook_dir = Path(kobo_server.ebook_dir)
         self.current_title: Optional[str] = None
         self.last_progress = -1  # Track last progress to avoid excessive updates
+
+    def _resolve_calibre_library_dir(self) -> str:
+        """Read configured Calibre library directory from app_settings.json."""
+        default_library = os.path.expanduser(os.getenv("CALIBRE_LIBRARY_DIR", "~/Calibre Library"))
+        config_path = Path(__file__).resolve().parents[2] / "app_settings.json"
+
+        if not config_path.exists():
+            return default_library
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as config_file:
+                config = json.load(config_file) or {}
+        except Exception as config_err:
+            print(f"[Scraper] Failed to load app settings: {config_err}")
+            return default_library
+
+        configured_library = config.get("calibre_library_dir")
+        if isinstance(configured_library, str) and configured_library.strip():
+            return os.path.expanduser(configured_library.strip())
+
+        return default_library
 
     def _update_status(self, status, message, progress=None, error=""):
         payload = {
@@ -82,7 +104,7 @@ class ScraperTask:
             # 3. Thêm vào Calibre Database
             if epub_path.exists():
                 import subprocess
-                calibre_library = os.path.expanduser("~/Calibre Library")
+                calibre_library = self._resolve_calibre_library_dir()
                 self._update_status("running", "Adding book to Calibre...", 85)
                 try:
                     subprocess.run(

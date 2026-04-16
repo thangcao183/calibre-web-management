@@ -1,30 +1,43 @@
 body {
-    font-family: "Bookerly";
+    font-family: "Bookerly", serif;
+    line-height: 1.45;
 }
 
+h1,
 h2 {
     text-align: center;
-}
-
-h1 {
-    text-align: center;
+    margin: 0;
 }
 
 p {
     text-align: justify;
-    text-indent: 1.5em;
-    /* line-height: 1.3em; */
-    margin: 0em 0em 1.2em 0em;
+    text-indent: 1.4em;
+    margin: 0 0 0.9em 0;
 }
 
-p.line-0 {
-    text-indent: 0em;
-    margin: 0em;
-}
-
+p.line-0,
 p.line-1 {
-    text-indent: 0em;
-    margin: 0em;
+    text-indent: 0;
+    margin: 0 0 0.9em 0;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0.8em auto;
+}
+
+blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 0.18em solid #777;
+}
+
+pre,
+code {
+    font-family: monospace;
+    white-space: pre-wrap;
 }
 
 .chapter {
@@ -35,68 +48,59 @@ p.line-1 {
     line-height: 1.2;
 }
 
+/*
+ * Drop cap giữ ở mức bảo thủ:
+ * - chỉ áp dụng cho đoạn đầu được đánh dấu .line-0
+ * - tránh font-size quá lớn và line-height quá thấp
+ * - có fallback serif nếu font riêng không hoạt động
+ */
 .line-0::first-letter {
-    text-indent: 0;
-    margin: 0;
-    font-size: 3em;
     float: left;
-    line-height: 80%;
-    font-family: "Dropcap-Font";
+    font-family: "Dropcap-Font", serif;
+    font-size: 2.4em;
+    line-height: 0.9;
+    margin: 0.02em 0.12em 0 0;
+    text-indent: 0;
+}
+
+.book-metadata,
+.book-description,
+.chapter-header {
+    border: 0.12em solid #111;
+    border-radius: 0.6em;
+    padding: 0.8em 1em;
 }
 
 .book-metadata {
-    border: 2px solid black;
-    border-radius: 15px;
     text-align: center;
+    margin-bottom: 1em;
 }
 
-.book-metadata p {
-    text-align: center;
+.book-metadata p,
+.book-description p {
+    text-indent: 0;
+    text-align: left;
+    margin: 0 0 0.7em 0;
 }
 
 .book-description {
-    padding: 10px;
-    margin-top: 10px;
-    border: 2px solid black;
-    border-radius: 15px;
-    text-align: justify;
-}
-
-/* Tùy chỉnh fieldset */
-.title-field {
-    border: 2px solid black;
-    /* Đổi màu theo ý thích */
-    border-radius: 10px;
-    /* Bo tròn các góc */
-    max-width: auto;
-    /* Độ rộng tối đa của khung (có thể thay đổi) */
-    margin-top: auto;
-    margin-bottom: 2em;
-    margin-right: auto;
-    margin-left: auto;
-    /* Căn giữa trang (tùy chọn) */
-}
-
-/* Tùy chỉnh legend (tiêu đề) */
-.title-field legend {
-    color: black;
-    /* Màu chữ của tiêu đề */
-    font-family: 'Chap-Font';
-    /* In đậm */
-    font-size: 1.2rem;
-    /* Độ lớn chữ */
-    padding: 0 5px;
-    /* Có thể thêm hiệu ứng bóng nhẹ nếu muốn:
-       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    */
-}
-
-/* Nội dung bên trong */
-.title-field .chap-name {
-    font-size: 1.4rem;
-    font-family: "Chap-Title-Font";
     margin-top: 1em;
-    display: block;
+}
+
+.chapter-header {
+    margin: 0 0 1.8em 0;
+    text-align: center;
+}
+
+.chap-label {
+    font-family: "Chap-Font", serif;
+    font-size: 1rem;
+    margin-bottom: 0.45em;
+}
+
+.chap-name {
+    font-size: 1.35rem;
+    font-family: "Chap-Title-Font", serif;
     font-weight: normal;
-    line-height: 1.2;
+    line-height: 1.25;
 }
