@@ -3,6 +3,7 @@ venv/
 .venv/
 env/
 .env
+.direnv
 
 # Python Bytecode
 src/__pycache__/
