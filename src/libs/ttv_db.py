@@ -186,16 +186,16 @@ def run_full_sync():
                         raw_json=excluded.raw_json
                 """, (
                     sid,
-                    s.get("name", ""),
-                    s.get("author", ""),
-                    s.get("introduce", ""),
-                    s.get("china_name", ""),
-                    s.get("count_chapter", 0),
-                    s.get("finish", 0),
-                    s.get("image", ""),
-                    s.get("tags", ""),
-                    s.get("avg_rate", 0),
-                    s.get("time_fix", ""),
+                    s.get("name") or "",
+                    s.get("author") or "",
+                    s.get("introduce") or "",
+                    s.get("china_name") or "",
+                    s.get("count_chapter") or 0,
+                    s.get("finish") or 0,
+                    s.get("image") or "",
+                    s.get("tags") or "",
+                    s.get("avg_rate") or 0,
+                    s.get("time_fix") or "",
                     json.dumps(s, ensure_ascii=False),
                 ))
                 total_inserted += 1
