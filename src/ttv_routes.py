@@ -46,35 +46,23 @@ def api_ttv_search():
     global story_cache
     current_time = time.time()
 
-    # --- Branch 1: user typed a search query → call native get_search_story ---
+    # --- Branch 1: user typed a search query → filter from browse list ---
+    # NOTE: TTV's get_search_story endpoint is currently dead (404/timeout).
+    # So we load the browse list and filter locally by query text.
     if query:
-        cache_key = f"search_{query}"
+        cache_key = f"{mode}_{finish}"
         cache_entry = story_cache.get(cache_key)
         if cache_entry is None or current_time - cache_entry['timestamp'] > CACHE_TTL:
             try:
                 client = _make_client()
-                res = client.get_search_story(key=query)
-                if res.get('status') == 1:
-                    stories = coerce_story_list(res)
-                    story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
-                else:
-                    # Fallback: native search failed (possibly wrong hash), filter from browse list
-                    print(f"[TTV] get_search_story failed ({res.get('message')}), falling back to local filter")
-                    fallback_key = f"{mode}_{finish}"
-                    fb = story_cache.get(fallback_key)
-                    if fb is None or current_time - fb['timestamp'] > CACHE_TTL:
-                        fb_res = client.get_list_story(mode=mode, delta="0", finish=finish)
-                        stories = coerce_story_list(fb_res) if fb_res.get('status') == 1 else []
-                        story_cache[fallback_key] = {'data': stories, 'timestamp': current_time}
-                    else:
-                        stories = fb['data']
-                    story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
+                story_res = client.get_list_story(mode=mode, delta="0", finish=finish)
+                stories = coerce_story_list(story_res) if story_res.get('status') == 1 else []
+                story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
             except Exception as e:
                 return jsonify({"success": False, "error": str(e)})
         else:
             stories = cache_entry['data']
 
-        # Apply local filter as secondary pass in case API returned broad results
         filtered = filter_story_list(stories, query=query)
         return jsonify({"success": True, "stories": _format_stories(filtered), "total": len(filtered)})
 

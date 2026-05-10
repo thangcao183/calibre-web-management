@@ -78,7 +78,7 @@ class TTVClient:
             self.token = result.get("imei", {}).get("remember_token", "")
         return result
 
-    def get_list_story(self, mode: str = "HotMonth", delta: str = "0", finish: str = "none") -> Dict[str, Any]:
+    def get_list_story(self, mode: str = "", delta: str = "0", finish: str = "none") -> Dict[str, Any]:
         payload = {
             "mode": mode,
             "delta": delta,
