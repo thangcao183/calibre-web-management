@@ -36,6 +36,36 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+VALID_SORT_COLS = {
+    "count_chapter": "count_chapter DESC",
+    "avg_rate": "avg_rate DESC",
+    "nominated_month": "nominated_month DESC",
+    "convert_month": "convert_month DESC",
+    "time_fix": "time_fix DESC",
+    "name": "name ASC",
+}
+
+TTV_TAG_MAP = {
+    "1": "Tiên Hiệp", "2": "Huyền Huyễn", "3": "Đô Thị", "4": "Khoa Huyễn", "5": "Kỳ Huyễn",
+    "6": "Võ Hiệp", "7": "Lịch Sử", "8": "Quân Sự", "9": "Du Hí", "10": "Cạnh Kỹ",
+    "11": "Linh Dị", "12": "Ngôn Tình", "14": "Hệ Thống", "15": "Dị Giới", "16": "Xuyên Không",
+    "17": "Trọng Sinh", "18": "Trinh Thám", "19": "Thám Hiểm", "20": "Linh Dị",
+    "21": "Sắc", "22": "Ngược", "23": "Sủng", "24": "Cung Đấu", "25": "Nữ Cường",
+    "26": "Gia Đấu", "27": "Đông Phương", "28": "Tây Phương", "29": "Dị Thế", "30": "Cổ Đại",
+    "31": "Hiện Đại", "32": "Mạt Thế", "33": "Tương Lai", "34": "Huyền Nghi", "35": "Ma Pháp",
+    "36": "Tiên Võ", "37": "Biến Thân", "38": "Hài Hước", "39": "Cổ Tiên", "40": "Kiếm Hiệp",
+    "162": "Tiên Hiệp", "115": "Huyền Huyễn", "118": "Đô Thị", "116": "Khoa Huyễn",
+    "120": "Võ Hiệp", "121": "Lịch Sử", "125": "Linh Dị", "122": "Quân Sự",
+}
+
+def get_tag_name(tag_id: str) -> str:
+    return TTV_TAG_MAP.get(str(tag_id), f"Tag {tag_id}")
+
+def get_tag_list() -> List[Dict[str, str]]:
+    # Return sorted list of tags for UI
+    tags = [{"id": k, "name": v} for k, v in TTV_TAG_MAP.items()]
+    return sorted(tags, key=lambda x: x["name"])
+
 def init_db():
     """Create the stories table if it doesn't exist."""
     conn = _get_conn()
@@ -51,6 +81,8 @@ def init_db():
             image TEXT NOT NULL DEFAULT '',
             tags TEXT NOT NULL DEFAULT '',
             avg_rate REAL DEFAULT 0,
+            nominated_month INTEGER DEFAULT 0,
+            convert_month INTEGER DEFAULT 0,
             time_fix TEXT NOT NULL DEFAULT '',
             raw_json TEXT NOT NULL DEFAULT '{}'
         )
@@ -61,6 +93,12 @@ def init_db():
             value TEXT NOT NULL DEFAULT ''
         )
     """)
+    # Migrate: add columns if missing (for existing DBs)
+    for col, coldef in [("nominated_month", "INTEGER DEFAULT 0"), ("convert_month", "INTEGER DEFAULT 0")]:
+        try:
+            conn.execute(f"ALTER TABLE stories ADD COLUMN {col} {coldef}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     conn.close()
 
@@ -80,8 +118,8 @@ def get_story_count() -> int:
     return row["cnt"] if row else 0
 
 
-def search_stories(query: str = "", finish: str = "", limit: int = 200) -> List[Dict[str, Any]]:
-    """Search local DB for stories matching query."""
+def search_stories(query: str = "", finish: str = "", tag: str = "", sort: str = "count_chapter", limit: int = 200) -> List[Dict[str, Any]]:
+    """Search local DB for stories matching query and filters."""
     conn = _get_conn()
     conditions = []
     params = []
@@ -95,8 +133,16 @@ def search_stories(query: str = "", finish: str = "", limit: int = 200) -> List[
         conditions.append("finish = ?")
         params.append(int(finish))
 
+    if tag and tag != "none":
+        # Tags are stored as "162,115". Use LIKE to find the tag ID.
+        # We wrap in commas to ensure we don't match partial IDs (e.g. "1" in "162")
+        # But since they are stored as comma-sep, we check for ",ID," or start/end
+        conditions.append("(',' || tags || ',') LIKE ?")
+        params.append(f"%,{tag},%")
+
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    sql = f"SELECT * FROM stories {where} ORDER BY count_chapter DESC LIMIT ?"
+    order = VALID_SORT_COLS.get(sort, "count_chapter DESC")
+    sql = f"SELECT * FROM stories {where} ORDER BY {order} LIMIT ?"
     params.append(limit)
 
     rows = conn.execute(sql, params).fetchall()
@@ -104,6 +150,14 @@ def search_stories(query: str = "", finish: str = "", limit: int = 200) -> List[
 
     results = []
     for r in rows:
+        raw_tags = r["tags"]
+        tag_names = []
+        if raw_tags:
+            for tid in str(raw_tags).split(','):
+                tid = tid.strip()
+                if tid:
+                    tag_names.append(get_tag_name(tid))
+        
         results.append({
             "id": r["id"],
             "name": r["name"],
@@ -111,9 +165,12 @@ def search_stories(query: str = "", finish: str = "", limit: int = 200) -> List[
             "count_chapter": r["count_chapter"],
             "finish": "1" if r["finish"] else "0",
             "description": r["introduce"],
-            "category": r["tags"],
+            "category": ", ".join(tag_names),
             "china_name": r["china_name"],
             "avg_rate": r["avg_rate"],
+            "nominated_month": r["nominated_month"],
+            "convert_month": r["convert_month"],
+            "time_fix": r["time_fix"],
             "cover_url": build_story_cover_url(r["image"]),
         })
     return results
@@ -145,33 +202,31 @@ def run_full_sync():
         conn = _get_conn()
         total_inserted = 0
 
-        for delta in range(MAX_DELTA):
-            _sync_status["progress"] = f"Fetching page {delta + 1}... ({total_inserted} stories so far)"
+        # Crawl both unfinished (none) and finished (full) stories
+        for finish_status in ["none", "full"]:
+            for delta in range(MAX_DELTA):
+                _sync_status["progress"] = f"Fetching {finish_status} page {delta + 1}... ({total_inserted} total)"
 
-            try:
-                res = client.get_list_story(mode="HotMonth", delta=str(delta), finish="none")
-            except Exception as e:
-                print(f"[TTV DB] Error on delta={delta}: {e}")
-                # Try to continue
-                continue
+                try:
+                    res = client.get_list_story(mode="HotMonth", delta=str(delta), finish=finish_status)
+                except Exception as e:
+                    print(f"[TTV DB] Error on delta={delta}: {e}")
+                    continue
 
-            if res.get("status") != 1:
-                # Possibly end of pages or error
-                print(f"[TTV DB] Stopped at delta={delta}: {res.get('message')}")
-                break
+                if res.get("status") != 1:
+                    break
 
-            stories = coerce_story_list(res)
-            if not stories:
-                print(f"[TTV DB] Empty page at delta={delta}, stopping.")
-                break
+                stories = coerce_story_list(res)
+                if not stories:
+                    break
 
-            for s in stories:
+                for s in stories:
                 sid = s.get("id")
                 if not sid:
                     continue
                 conn.execute("""
-                    INSERT INTO stories (id, name, author, introduce, china_name, count_chapter, finish, image, tags, avg_rate, time_fix, raw_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO stories (id, name, author, introduce, china_name, count_chapter, finish, image, tags, avg_rate, nominated_month, convert_month, time_fix, raw_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         name=excluded.name,
                         author=excluded.author,
@@ -182,6 +237,8 @@ def run_full_sync():
                         image=excluded.image,
                         tags=excluded.tags,
                         avg_rate=excluded.avg_rate,
+                        nominated_month=excluded.nominated_month,
+                        convert_month=excluded.convert_month,
                         time_fix=excluded.time_fix,
                         raw_json=excluded.raw_json
                 """, (
@@ -195,6 +252,8 @@ def run_full_sync():
                     s.get("image") or "",
                     s.get("tags") or "",
                     s.get("avg_rate") or 0,
+                    s.get("nominated_month") or 0,
+                    s.get("convert_month") or 0,
                     s.get("time_fix") or "",
                     json.dumps(s, ensure_ascii=False),
                 ))

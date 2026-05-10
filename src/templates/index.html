@@ -288,12 +288,27 @@
                             <input type="text" id="ttv-search-input"
                                 class="form-control form-control-sm bg-dark border-secondary text-white"
                                 placeholder="Tìm tên truyện, tác giả..." style="width:250px;">
+                            <select id="ttv-tag-select"
+                                class="form-select form-select-sm bg-dark border-secondary text-white"
+                                style="width:140px;">
+                                <option value="none">Tất cả thể loại</option>
+                            </select>
                             <select id="ttv-status-select"
                                 class="form-select form-select-sm bg-dark border-secondary text-white"
                                 style="width:150px;">
                                 <option value="none">Tất cả</option>
                                 <option value="1">Đã Hoàn Thành</option>
                                 <option value="0">Đang Ra</option>
+                            </select>
+                            <select id="ttv-sort-select"
+                                class="form-select form-select-sm bg-dark border-secondary text-white"
+                                style="width:160px;">
+                                <option value="count_chapter">Nhiều Chương</option>
+                                <option value="avg_rate">Đánh Giá Cao</option>
+                                <option value="nominated_month">Đề Cử Tháng</option>
+                                <option value="convert_month">Convert Tháng</option>
+                                <option value="time_fix">Mới Cập Nhật</option>
+                                <option value="name">Theo Tên A-Z</option>
                             </select>
                             <button class="btn btn-sm btn-primary" id="btn-ttv-search">
                                 <i class="bi bi-search"></i> Tìm
@@ -310,6 +325,42 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- TTV Story Detail Modal -->
+    <div class="modal fade" id="ttvDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content glass-card border-secondary">
+                <div class="modal-header border-secondary">
+                    <h6 class="modal-title text-truncate" id="ttv-modal-title"></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-book-layout">
+                        <div class="modal-cover-wrap">
+                            <img id="ttv-modal-cover" src="" class="modal-cover-large" alt="">
+                        </div>
+                        <div>
+                            <div id="ttv-modal-china-name" class="small text-muted mb-2"></div>
+                            <div class="mb-2">
+                                <span class="small text-secondary"><i class="bi bi-person me-1"></i></span>
+                                <span id="ttv-modal-author" class="small"></span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mb-2" id="ttv-modal-badges"></div>
+                            <div class="mt-2">
+                                <div class="modal-section-label">Mô tả</div>
+                                <div class="modal-description-box text-light" id="ttv-modal-desc" style="max-height:220px;">Đang tải...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-primary btn-sm" id="ttv-modal-download-btn">
+                            <i class="bi bi-download me-1"></i> Download EPUB
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Book Action Modal (Bootstrap) -->

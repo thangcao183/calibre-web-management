@@ -20,7 +20,7 @@ class TTVScraperTask:
         self.author = author
         self.cover_url = cover_url
         self.description = description
-        self.tags = tags or ["TTV", "Download"]
+        self.tags = (tags or []) + ["TTV"]
         self.imei = imei
         self.token_adr = token_adr
         self.ebook_dir = Path(kobo_server.ebook_dir)

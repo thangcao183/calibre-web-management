@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from libs.ttv_api.ttv.client import TTVClient
 from libs.ttv_api.ttv.story import filter_story_list, coerce_story_list, build_story_cover_url
 from libs.ttv_scraper_task import TTVScraperTask
-from libs.ttv_db import search_stories, get_sync_status, start_sync_thread, maybe_auto_sync, get_story_count
+from libs.ttv_db import search_stories, get_sync_status, start_sync_thread, maybe_auto_sync, get_story_count, get_tag_list
 from libs.kobo_device import kobo_server
 
 ttv_bp = Blueprint('ttv', __name__, url_prefix='/api/ttv')
@@ -17,6 +17,8 @@ ttv_bp = Blueprint('ttv', __name__, url_prefix='/api/ttv')
 def api_ttv_search():
     query = request.args.get('query', '').strip()
     finish = request.args.get('finish', 'none').strip()
+    tag = request.args.get('tag', '').strip()
+    sort = request.args.get('sort', 'count_chapter').strip()
     limit = request.args.get('limit', '200', type=str)
 
     try:
@@ -24,8 +26,14 @@ def api_ttv_search():
     except ValueError:
         limit_int = 200
 
-    stories = search_stories(query=query, finish=finish, limit=limit_int)
+    stories = search_stories(query=query, finish=finish, tag=tag, sort=sort, limit=limit_int)
     return jsonify({"success": True, "stories": stories, "total": len(stories)})
+
+
+@ttv_bp.route('/tags', methods=['GET'])
+def api_ttv_tags():
+    """Get list of available TTV tags."""
+    return jsonify({"success": True, "tags": get_tag_list()})
 
 
 @ttv_bp.route('/sync', methods=['POST'])
