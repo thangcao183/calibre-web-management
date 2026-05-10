@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from libs.kobo_device import start_tcp_listener
 from libs.watcher import start_watcher
 from routes import api_bp, reader_bp
+from ttv_routes import ttv_bp
 
 load_dotenv()
 
@@ -17,6 +18,7 @@ app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "false"
 
 app.register_blueprint(api_bp)
 app.register_blueprint(reader_bp)
+app.register_blueprint(ttv_bp)
 
 # Basic Config (User can change these in production)
 ADMIN_USER = os.getenv("DASHBOARD_USER", "admin")

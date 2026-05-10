@@ -53,6 +53,9 @@
                         <a class="cwa-nav-item" href="#section-settings" data-section="section-settings">
                             <i class="bi bi-gear"></i><span>Settings</span>
                         </a>
+                        <a class="cwa-nav-item" href="#section-ttv" data-section="section-ttv">
+                            <i class="bi bi-search"></i><span>TTV Browser</span>
+                        </a>
                     </nav>
                 </div>
             </div>
@@ -252,6 +255,25 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="card glass-card mt-3" id="section-ttv" style="display: none;">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-search me-2"></i>TTV Browser
+                        </h5>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="text" id="ttv-search-input" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Search TangThuVien..." style="width:250px;">
+                            <button class="btn btn-sm btn-primary" id="btn-ttv-search">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                    <div class="ttv-results-container" id="ttv-results-container">
+                        <div class="text-secondary text-center py-4">Search for stories to download from TangThuVien.</div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -333,5 +355,6 @@
     <script src="/static/js/realtime.js"></script>
     <script src="/static/js/ui-bindings.js"></script>
     <script src="/static/js/main-init.js"></script>
+    <script src="/static/js/ttv.js"></script>
 </body>
 </html>
