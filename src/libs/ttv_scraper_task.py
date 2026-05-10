@@ -14,8 +14,11 @@ from libs.kobo_device import kobo_server
 from libs.lib_types import BookInfor
 
 class TTVScraperTask:
-    def __init__(self, id_story: str, imei: str = "21bab69a53e003ff", token_adr: str = "fcm_ttv::test"):
+    def __init__(self, id_story: str, title: Optional[str] = None, author: Optional[str] = None, cover_url: Optional[str] = None, imei: str = "21bab69a53e003ff", token_adr: str = "fcm_ttv::test"):
         self.id_story = str(id_story)
+        self.title = title
+        self.author = author
+        self.cover_url = cover_url
         self.imei = imei
         self.token_adr = token_adr
         self.ebook_dir = Path(kobo_server.ebook_dir)
@@ -92,19 +95,13 @@ class TTVScraperTask:
                 raise Exception("Story has no chapters.")
 
             # Attempt to extract book info
-            # TTV doesn't give much in get_list_chapter except story_name maybe.
-            first_chap = chapters_data[0]
-            # Since get_list_chapter doesn't provide story metadata directly,
-            # we can try to guess from name_id_chapter or default to something
-            # If we wanted full details, we would call get_json_story, but client.py doesn't have it.
-            # We will use "TangThuVien Book ID {id_story}" for title if we don't have it.
-            self.current_title = f"TTV Story {self.id_story}"
+            self.current_title = self.title or f"TTV Story {self.id_story}"
             book_info = BookInfor(
                 title=self.current_title,
-                author="Unknown",
+                author=self.author or "Unknown",
                 book_id=int(self.id_story),
                 description="",
-                cover=build_story_cover_url(""),
+                cover=self.cover_url or build_story_cover_url(""),
                 publisher="TangThuVien",
                 tags=["TTV", "Download"]
             )
@@ -116,16 +113,27 @@ class TTVScraperTask:
             
             for idx, chap in enumerate(chapters_data, 1):
                 chap_id = str(chap.get("id"))
-                chap_title = chap.get("name_id_chapter") or f"Chapter {idx}"
+                
+                name_id = chap.get("name_id_chapter") or ""
+                content_title = chap.get("content_title_of_chapter") or ""
+                chap_title = f"{name_id}: {content_title}".strip(": ") if name_id or content_title else f"Chapter {idx}"
                 
                 content_res = client.get_content_chapter(chap_id, self.id_story)
                 if content_res.get("status") == 1:
                     content_list = content_res.get("content_chapter") or []
                     if content_list and isinstance(content_list[0], dict):
                         html_content = content_list[0].get("content", "")
-                        # Simple format
-                        html_content = html_content.replace("\n", "<br/>")
-                        book_content.append({"title": chap_title, "content": f"<p>{html_content}</p>"})
+                        
+                        # Format paragraphs and apply dropcap
+                        lines = [line.strip() for line in html_content.split("\n") if line.strip()]
+                        formatted_content = ""
+                        for i, line in enumerate(lines):
+                            if i == 0:
+                                formatted_content += f'<p class="line-0">{line}</p>\n'
+                            else:
+                                formatted_content += f'<p>{line}</p>\n'
+                                
+                        book_content.append({"title": chap_title, "content": formatted_content})
                 
                 self._on_chapter_progress(idx, total_chaps)
                 

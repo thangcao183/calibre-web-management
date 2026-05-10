@@ -7,10 +7,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const performSearch = async () => {
         const query = searchInput.value.trim();
+        const mode = document.getElementById('ttv-mode-select').value;
+        const status = document.getElementById('ttv-status-select').value;
+        
         resultsContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-secondary">Searching TangThuVien...</div></div>';
         
         try {
-            const url = query ? `/api/ttv/search?query=${encodeURIComponent(query)}` : '/api/ttv/search';
+            const params = new URLSearchParams();
+            if (query) params.append('query', query);
+            params.append('mode', mode);
+            params.append('finish', status);
+            
+            const url = `/api/ttv/search?${params.toString()}`;
             const response = await fetch(url);
             const data = await response.json();
             
@@ -48,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p class="card-text small text-secondary mb-1"><i class="bi bi-person me-1"></i>${story.author}</p>
                                 <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chapters</span> <span class="badge ${story.finish === 'full' ? 'bg-success' : 'bg-info'}">${story.finish || 'ongoing'}</span></p>
                                 <div class="mt-auto">
-                                    <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}">
+                                    <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}" data-title="${encodeURIComponent(story.name)}" data-author="${encodeURIComponent(story.author)}" data-cover="${encodeURIComponent(coverUrl)}">
                                         <i class="bi bi-download me-1"></i> Download
                                     </button>
                                 </div>
@@ -64,13 +72,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Attach event listeners to download buttons
         document.querySelectorAll('.btn-ttv-download').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const storyId = e.currentTarget.getAttribute('data-id');
-                downloadStory(storyId, e.currentTarget);
+                const btnEl = e.currentTarget;
+                const storyId = btnEl.getAttribute('data-id');
+                const title = decodeURIComponent(btnEl.getAttribute('data-title'));
+                const author = decodeURIComponent(btnEl.getAttribute('data-author'));
+                const coverUrl = decodeURIComponent(btnEl.getAttribute('data-cover'));
+                downloadStory(storyId, title, author, coverUrl, btnEl);
             });
         });
     };
 
-    const downloadStory = async (storyId, btnElement) => {
+    const downloadStory = async (storyId, title, author, coverUrl, btnElement) => {
         const originalHtml = btnElement.innerHTML;
         btnElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Queueing...';
         btnElement.disabled = true;
@@ -81,7 +93,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ id_story: storyId })
+                body: JSON.stringify({ 
+                    id_story: storyId,
+                    title: title,
+                    author: author,
+                    cover_url: coverUrl
+                })
             });
             const data = await response.json();
             

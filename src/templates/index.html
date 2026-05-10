@@ -262,10 +262,19 @@
                         <h5 class="card-title mb-0">
                             <i class="bi bi-search me-2"></i>TTV Browser
                         </h5>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="text" id="ttv-search-input" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Search TangThuVien..." style="width:250px;">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <select id="ttv-mode-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:140px;">
+                                <option value="HotMonth">Truyện Hot</option>
+                                <option value="New">Truyện Mới</option>
+                                <option value="Update">Mới Cập Nhật</option>
+                            </select>
+                            <select id="ttv-status-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:140px;">
+                                <option value="none">Đang ra / Tất cả</option>
+                                <option value="full">Đã Hoàn Thành</option>
+                            </select>
+                            <input type="text" id="ttv-search-input" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Lọc theo tên..." style="width:200px;">
                             <button class="btn btn-sm btn-primary" id="btn-ttv-search">
-                                <i class="bi bi-search"></i> Search
+                                <i class="bi bi-search"></i> Tìm
                             </button>
                         </div>
                     </div>

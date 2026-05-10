@@ -13,37 +13,41 @@ ttv_bp = Blueprint('ttv', __name__, url_prefix='/api/ttv')
 
 # Simple memory cache for get_list_story to avoid spamming the endpoint on every search keypress
 CACHE_TTL = 300 # 5 minutes
-story_cache = {
-    'timestamp': 0,
-    'data': None
-}
+story_cache = {}
 
 @ttv_bp.route('/search', methods=['GET'])
 def api_ttv_search():
     query = request.args.get('query', '').strip()
+    mode = request.args.get('mode', 'HotMonth').strip()
+    finish = request.args.get('finish', 'none').strip()
     
     global story_cache
     current_time = time.time()
     
-    if story_cache['data'] is None or current_time - story_cache['timestamp'] > CACHE_TTL:
+    cache_key = f"{mode}_{finish}"
+    cache_entry = story_cache.get(cache_key)
+    
+    if cache_entry is None or current_time - cache_entry['timestamp'] > CACHE_TTL:
         try:
             client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
             token_res = client.get_token()
             if token_res.get('status') != 1:
                 return jsonify({"success": False, "error": "Failed to get TTV token"})
             
-            # Use HotMonth or potentially none based on what provides the most stories
-            story_res = client.get_list_story(mode="HotMonth", delta="0", finish="none")
+            story_res = client.get_list_story(mode=mode, delta="0", finish=finish)
             if story_res.get('status') != 1:
                 return jsonify({"success": False, "error": f"Failed to get story list: {story_res.get('message')}"})
             
             stories = coerce_story_list(story_res)
-            story_cache['data'] = stories
-            story_cache['timestamp'] = current_time
+            story_cache[cache_key] = {
+                'data': stories,
+                'timestamp': current_time
+            }
+            cache_entry = story_cache[cache_key]
         except Exception as e:
             return jsonify({"success": False, "error": str(e)})
             
-    stories = story_cache['data']
+    stories = cache_entry['data']
     
     # Filter using ttv.story logic
     filtered = filter_story_list(stories, query=query)
@@ -70,11 +74,20 @@ def api_ttv_search():
 def api_ttv_download():
     data = request.json or {}
     id_story = data.get("id_story")
+    title = data.get("title")
+    author = data.get("author")
+    cover_url = data.get("cover_url")
+    
     if not id_story:
         return jsonify({"success": False, "error": "Missing id_story"}), 400
         
     try:
-        task = TTVScraperTask(id_story=id_story)
+        task = TTVScraperTask(
+            id_story=id_story,
+            title=title,
+            author=author,
+            cover_url=cover_url
+        )
         
         # We need to queue this or run it in background. 
         # The main app has a DOWNLOAD_QUEUE, but we can also just run it in a thread like we do with ScraperTask.
