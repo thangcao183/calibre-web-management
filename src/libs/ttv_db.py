@@ -45,23 +45,58 @@ VALID_SORT_COLS = {
     "name": "name ASC",
 }
 
-TTV_TAG_MAP = {
-    "1": "Tiên Hiệp", "2": "Huyền Huyễn", "3": "Đô Thị", "4": "Khoa Huyễn", "5": "Kỳ Huyễn",
-    "6": "Võ Hiệp", "7": "Lịch Sử", "8": "Quân Sự", "9": "Du Hí", "10": "Cạnh Kỹ",
-    "11": "Linh Dị", "12": "Ngôn Tình", "14": "Hệ Thống", "15": "Dị Giới", "16": "Xuyên Không",
-    "17": "Trọng Sinh", "18": "Trinh Thám", "19": "Thám Hiểm", "20": "Linh Dị",
-    "21": "Sắc", "22": "Ngược", "23": "Sủng", "24": "Cung Đấu", "25": "Nữ Cường",
-    "26": "Gia Đấu", "27": "Đông Phương", "28": "Tây Phương", "29": "Dị Thế", "30": "Cổ Đại",
-    "31": "Hiện Đại", "32": "Mạt Thế", "33": "Tương Lai", "34": "Huyền Nghi", "35": "Ma Pháp",
-    "36": "Tiên Võ", "37": "Biến Thân", "38": "Hài Hước", "39": "Cổ Tiên", "40": "Kiếm Hiệp",
-    "162": "Tiên Hiệp", "115": "Huyền Huyễn", "118": "Đô Thị", "116": "Khoa Huyễn",
-    "120": "Võ Hiệp", "121": "Lịch Sử", "125": "Linh Dị", "122": "Quân Sự",
-}
+TTV_TAG_MAP = {}  # Will be populated from API
+
+def sync_tags(client=None):
+    """Fetch all categories from TTV and update the local map."""
+    global TTV_TAG_MAP
+    try:
+        if not client:
+            client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
+            client.get_token()
+        
+        res = client.get_category()
+        if res.get("status") == 1:
+            cats = res.get("category", [])
+            new_map = {}
+            for c in cats:
+                cid = str(c.get("id"))
+                name = c.get("name")
+                if cid and name:
+                    new_map[cid] = name
+            
+            if new_map:
+                TTV_TAG_MAP.update(new_map)
+                print(f"[TTV DB] Synced {len(TTV_TAG_MAP)} tags from API.")
+                
+                # Save to a local json for persistence if you want
+                tag_cache = DB_PATH.parent / "ttv_tags.json"
+                with open(tag_cache, "w", encoding="utf-8") as f:
+                    json.dump(TTV_TAG_MAP, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[TTV DB] Failed to sync tags: {e}")
+        # Try to load from cache
+        load_tags_from_cache()
+
+def load_tags_from_cache():
+    global TTV_TAG_MAP
+    tag_cache = DB_PATH.parent / "ttv_tags.json"
+    if tag_cache.exists():
+        try:
+            with open(tag_cache, "r", encoding="utf-8") as f:
+                TTV_TAG_MAP.update(json.load(f))
+            print(f"[TTV DB] Loaded {len(TTV_TAG_MAP)} tags from cache.")
+        except: pass
+
+# Load immediately on import
+load_tags_from_cache()
 
 def get_tag_name(tag_id: str) -> str:
     return TTV_TAG_MAP.get(str(tag_id), f"Tag {tag_id}")
 
 def get_tag_list() -> List[Dict[str, str]]:
+    if not TTV_TAG_MAP:
+        sync_tags()
     # Return sorted list of tags for UI
     tags = [{"id": k, "name": v} for k, v in TTV_TAG_MAP.items()]
     return sorted(tags, key=lambda x: x["name"])

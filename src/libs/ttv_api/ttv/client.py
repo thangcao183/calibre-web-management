@@ -130,3 +130,12 @@ class TTVClient:
             method="GET",
         )
         return self._send(req)
+
+    def get_category(self) -> Dict[str, Any]:
+        """GET endpoint – returns full list of genres/categories."""
+        req = urllib.request.Request(
+            f"{BASE}/get_category",
+            headers=self._headers(with_token=True),
+            method="GET",
+        )
+        return self._send(req)
