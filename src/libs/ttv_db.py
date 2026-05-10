@@ -221,43 +221,43 @@ def run_full_sync():
                     break
 
                 for s in stories:
-                sid = s.get("id")
-                if not sid:
-                    continue
-                conn.execute("""
-                    INSERT INTO stories (id, name, author, introduce, china_name, count_chapter, finish, image, tags, avg_rate, nominated_month, convert_month, time_fix, raw_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        name=excluded.name,
-                        author=excluded.author,
-                        introduce=excluded.introduce,
-                        china_name=excluded.china_name,
-                        count_chapter=excluded.count_chapter,
-                        finish=excluded.finish,
-                        image=excluded.image,
-                        tags=excluded.tags,
-                        avg_rate=excluded.avg_rate,
-                        nominated_month=excluded.nominated_month,
-                        convert_month=excluded.convert_month,
-                        time_fix=excluded.time_fix,
-                        raw_json=excluded.raw_json
-                """, (
-                    sid,
-                    s.get("name") or "",
-                    s.get("author") or "",
-                    s.get("introduce") or "",
-                    s.get("china_name") or "",
-                    s.get("count_chapter") or 0,
-                    s.get("finish") or 0,
-                    s.get("image") or "",
-                    s.get("tags") or "",
-                    s.get("avg_rate") or 0,
-                    s.get("nominated_month") or 0,
-                    s.get("convert_month") or 0,
-                    s.get("time_fix") or "",
-                    json.dumps(s, ensure_ascii=False),
-                ))
-                total_inserted += 1
+                    sid = s.get("id")
+                    if not sid:
+                        continue
+                    conn.execute("""
+                        INSERT INTO stories (id, name, author, introduce, china_name, count_chapter, finish, image, tags, avg_rate, nominated_month, convert_month, time_fix, raw_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            name=excluded.name,
+                            author=excluded.author,
+                            introduce=excluded.introduce,
+                            china_name=excluded.china_name,
+                            count_chapter=excluded.count_chapter,
+                            finish=excluded.finish,
+                            image=excluded.image,
+                            tags=excluded.tags,
+                            avg_rate=excluded.avg_rate,
+                            nominated_month=excluded.nominated_month,
+                            convert_month=excluded.convert_month,
+                            time_fix=excluded.time_fix,
+                            raw_json=excluded.raw_json
+                    """, (
+                        sid,
+                        s.get("name") or "",
+                        s.get("author") or "",
+                        s.get("introduce") or "",
+                        s.get("china_name") or "",
+                        s.get("count_chapter") or 0,
+                        s.get("finish") or 0,
+                        s.get("image") or "",
+                        s.get("tags") or "",
+                        s.get("avg_rate") or 0,
+                        s.get("nominated_month") or 0,
+                        s.get("convert_month") or 0,
+                        s.get("time_fix") or "",
+                        json.dumps(s, ensure_ascii=False),
+                    ))
+                    total_inserted += 1
 
             conn.commit()
 
