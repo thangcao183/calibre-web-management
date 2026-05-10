@@ -121,3 +121,12 @@ class TTVClient:
             "hash": hash_get_json_story(id_story, self.userid),
         }
         return self._post_form_json("get_json_story", "get_json_story", payload, with_token=True)
+
+    def get_list_story_home(self) -> Dict[str, Any]:
+        """GET endpoint – no hash required, returns stories on homepage."""
+        req = urllib.request.Request(
+            f"{BASE}/get_list_story_home",
+            headers=self._headers(with_token=True),
+            method="GET",
+        )
+        return self._send(req)

@@ -11,9 +11,9 @@ from libs.kobo_device import kobo_server
 
 ttv_bp = Blueprint('ttv', __name__, url_prefix='/api/ttv')
 
-# Simple memory cache to avoid hammering TTV API
-CACHE_TTL = 300 # 5 minutes
+CACHE_TTL = 300  # 5 minutes
 story_cache = {}
+MAX_PAGES = 5  # Load delta 0..4 for ~5x more stories
 
 def _make_client():
     client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
@@ -37,6 +37,28 @@ def _format_stories(stories):
         })
     return results
 
+def _fetch_stories(client, mode, finish):
+    """Fetch stories: Home mode uses GET endpoint, others load multiple pages."""
+    if mode == "Home":
+        res = client.get_list_story_home()
+        return coerce_story_list(res) if res.get('status') == 1 else []
+
+    all_stories = []
+    seen_ids = set()
+    for delta in range(MAX_PAGES):
+        res = client.get_list_story(mode=mode, delta=str(delta), finish=finish)
+        if res.get('status') != 1:
+            break
+        page = coerce_story_list(res)
+        if not page:
+            break
+        for s in page:
+            sid = s.get("id")
+            if sid and sid not in seen_ids:
+                seen_ids.add(sid)
+                all_stories.append(s)
+    return all_stories
+
 @ttv_bp.route('/search', methods=['GET'])
 def api_ttv_search():
     query = request.args.get('query', '').strip()
@@ -46,41 +68,22 @@ def api_ttv_search():
     global story_cache
     current_time = time.time()
 
-    # --- Branch 1: user typed a search query → filter from browse list ---
-    # NOTE: TTV's get_search_story endpoint is currently dead (404/timeout).
-    # So we load the browse list and filter locally by query text.
-    if query:
-        cache_key = f"{mode}_{finish}"
-        cache_entry = story_cache.get(cache_key)
-        if cache_entry is None or current_time - cache_entry['timestamp'] > CACHE_TTL:
-            try:
-                client = _make_client()
-                story_res = client.get_list_story(mode=mode, delta="0", finish=finish)
-                stories = coerce_story_list(story_res) if story_res.get('status') == 1 else []
-                story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
-            except Exception as e:
-                return jsonify({"success": False, "error": str(e)})
-        else:
-            stories = cache_entry['data']
-
-        filtered = filter_story_list(stories, query=query)
-        return jsonify({"success": True, "stories": _format_stories(filtered), "total": len(filtered)})
-
-    # --- Branch 2: no query → browse by mode/finish (get_list_story) ---
+    # Load stories (shared cache for both browse and search)
     cache_key = f"{mode}_{finish}"
     cache_entry = story_cache.get(cache_key)
     if cache_entry is None or current_time - cache_entry['timestamp'] > CACHE_TTL:
         try:
             client = _make_client()
-            story_res = client.get_list_story(mode=mode, delta="0", finish=finish)
-            if story_res.get('status') != 1:
-                return jsonify({"success": False, "error": f"Failed to get story list: {story_res.get('message')}"})
-            stories = coerce_story_list(story_res)
+            stories = _fetch_stories(client, mode, finish)
             story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
         except Exception as e:
             return jsonify({"success": False, "error": str(e)})
     else:
         stories = cache_entry['data']
+
+    # If user typed a query, filter locally
+    if query:
+        stories = filter_story_list(stories, query=query)
 
     return jsonify({"success": True, "stories": _format_stories(stories), "total": len(stories)})
 
