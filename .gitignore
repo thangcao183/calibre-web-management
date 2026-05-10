@@ -4,6 +4,7 @@ venv/
 env/
 .env
 .direnv
+ttv_api/
 
 # Python Bytecode
 src/__pycache__/

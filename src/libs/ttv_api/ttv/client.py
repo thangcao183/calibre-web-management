@@ -8,6 +8,8 @@ from .hash import (
     hash_get_content_chapter,
     hash_get_list_chapter,
     hash_get_list_story,
+    hash_get_search_story,
+    hash_get_json_story,
 )
 
 from .constants import BASE
@@ -103,3 +105,19 @@ class TTVClient:
             "hash": hash_get_content_chapter(self.token, id_chapter, id_story, self.userid),
         }
         return self._post_form_json("get_content_chapter", "get_content_chapter", payload, with_token=True)
+
+    def get_search_story(self, name: str) -> Dict[str, Any]:
+        payload = {
+            "name": name,
+            "user_id": self.userid,
+            "hash": hash_get_search_story(name, self.userid),
+        }
+        return self._post_form_json("get_search_story", "get_search_story", payload, with_token=True)
+
+    def get_json_story(self, id_story: str) -> Dict[str, Any]:
+        payload = {
+            "id_story": id_story,
+            "user_id": self.userid,
+            "hash": hash_get_json_story(id_story, self.userid),
+        }
+        return self._post_form_json("get_json_story", "get_json_story", payload, with_token=True)

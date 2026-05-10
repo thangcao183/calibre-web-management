@@ -21,3 +21,10 @@ def hash_get_list_chapter(token: str, id_story: str, delta: str, all_value: str)
 
 def hash_get_content_chapter(token: str, id_chapter: str, id_story: str, user_id: str) -> str:
     return gen_hash(token + id_chapter + id_story + user_id + SECRET)
+
+def hash_get_search_story(name: str, user_id: str) -> str:
+    # Payload usually: {"name": name, "user_id": user_id, "hash": "..."}
+    return gen_hash(name + user_id + SECRET)
+
+def hash_get_json_story(id_story: str, user_id: str) -> str:
+    return gen_hash(id_story + user_id + SECRET)

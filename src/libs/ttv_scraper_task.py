@@ -14,11 +14,13 @@ from libs.kobo_device import kobo_server
 from libs.lib_types import BookInfor
 
 class TTVScraperTask:
-    def __init__(self, id_story: str, title: Optional[str] = None, author: Optional[str] = None, cover_url: Optional[str] = None, imei: str = "21bab69a53e003ff", token_adr: str = "fcm_ttv::test"):
+    def __init__(self, id_story: str, title: Optional[str] = None, author: Optional[str] = None, cover_url: Optional[str] = None, description: str = "", tags: list = None, imei: str = "21bab69a53e003ff", token_adr: str = "fcm_ttv::test"):
         self.id_story = str(id_story)
         self.title = title
         self.author = author
         self.cover_url = cover_url
+        self.description = description
+        self.tags = tags or ["TTV", "Download"]
         self.imei = imei
         self.token_adr = token_adr
         self.ebook_dir = Path(kobo_server.ebook_dir)
@@ -100,10 +102,10 @@ class TTVScraperTask:
                 title=self.current_title,
                 author=self.author or "Unknown",
                 book_id=int(self.id_story),
-                description="",
+                description=self.description,
                 cover=self.cover_url or build_story_cover_url(""),
                 publisher="TangThuVien",
-                tags=["TTV", "Download"]
+                tags=self.tags
             )
 
             self._update_status("running", f"Downloading chapters for {self.current_title}...", 35)

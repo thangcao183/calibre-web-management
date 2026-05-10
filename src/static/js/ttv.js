@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p class="card-text small text-secondary mb-1"><i class="bi bi-person me-1"></i>${story.author}</p>
                                 <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chapters</span> <span class="badge ${story.finish === 'full' ? 'bg-success' : 'bg-info'}">${story.finish || 'ongoing'}</span></p>
                                 <div class="mt-auto">
-                                    <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}" data-title="${encodeURIComponent(story.name)}" data-author="${encodeURIComponent(story.author)}" data-cover="${encodeURIComponent(coverUrl)}">
+                                    <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}" data-title="${encodeURIComponent(story.name)}" data-author="${encodeURIComponent(story.author)}" data-cover="${encodeURIComponent(coverUrl)}" data-desc="${encodeURIComponent(story.description || '')}" data-cat="${encodeURIComponent(story.category || '')}">
                                         <i class="bi bi-download me-1"></i> Download
                                     </button>
                                 </div>
@@ -77,12 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = decodeURIComponent(btnEl.getAttribute('data-title'));
                 const author = decodeURIComponent(btnEl.getAttribute('data-author'));
                 const coverUrl = decodeURIComponent(btnEl.getAttribute('data-cover'));
-                downloadStory(storyId, title, author, coverUrl, btnEl);
+                const description = decodeURIComponent(btnEl.getAttribute('data-desc'));
+                const catStr = decodeURIComponent(btnEl.getAttribute('data-cat'));
+                const tags = catStr ? catStr.split(',').map(s => s.trim()) : [];
+                downloadStory(storyId, title, author, coverUrl, description, tags, btnEl);
             });
         });
     };
 
-    const downloadStory = async (storyId, title, author, coverUrl, btnElement) => {
+    const downloadStory = async (storyId, title, author, coverUrl, description, tags, btnElement) => {
         const originalHtml = btnElement.innerHTML;
         btnElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Queueing...';
         btnElement.disabled = true;
@@ -97,7 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     id_story: storyId,
                     title: title,
                     author: author,
-                    cover_url: coverUrl
+                    cover_url: coverUrl,
+                    description: description,
+                    tags: tags
                 })
             });
             const data = await response.json();
