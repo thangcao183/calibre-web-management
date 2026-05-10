@@ -45,71 +45,61 @@ VALID_SORT_COLS = {
     "name": "name ASC",
 }
 
-TTV_TAG_MAP = {}  # Will be populated from API
-
-def sync_tags(client=None):
-    """Fetch all categories from TTV and update the local map."""
-    global TTV_TAG_MAP
-    print("[TTV DB] Syncing tags from API...")
-    try:
-        if not client:
-            client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
-            token_res = client.get_token()
-            if token_res.get("status") != 1:
-                print(f"[TTV DB] Tag sync failed: Auth error {token_res}")
-                return
-        
-        res = client.get_category()
-        if res.get("status") == 1:
-            cats = res.get("category") or []
-            if not cats:
-                # Some API versions return list directly or in 'categories'
-                cats = res.get("categories") or []
-            
-            new_map = {}
-            for c in cats:
-                cid = str(c.get("id") or "")
-                name = c.get("name") or c.get("category_name")
-                if cid and name:
-                    new_map[cid] = name
-            
-            if new_map:
-                TTV_TAG_MAP.update(new_map)
-                print(f"[TTV DB] Successfully synced {len(TTV_TAG_MAP)} tags.")
-                
-                tag_cache = DB_PATH.parent / "ttv_tags.json"
-                with open(tag_cache, "w", encoding="utf-8") as f:
-                    json.dump(TTV_TAG_MAP, f, ensure_ascii=False, indent=2)
-            else:
-                print(f"[TTV DB] Tag sync: No tags found in response: {res}")
-        else:
-            print(f"[TTV DB] Tag sync API returned status 0: {res.get('message')}")
-    except Exception as e:
-        print(f"[TTV DB] Tag sync exception: {e}")
-        import traceback
-        traceback.print_exc()
+TTV_TAG_MAP = {}  # Will be populated from JSON/API
 
 def load_tags_from_cache():
     global TTV_TAG_MAP
-    tag_cache = DB_PATH.parent / "ttv_tags.json"
+    tag_cache = Path(__file__).resolve().parent / "ttv_tags.json"
     if tag_cache.exists():
         try:
             with open(tag_cache, "r", encoding="utf-8") as f:
-                TTV_TAG_MAP.update(json.load(f))
-            print(f"[TTV DB] Loaded {len(TTV_TAG_MAP)} tags from cache.")
-        except: pass
+                data = json.load(f)
+                TTV_TAG_MAP.update(data)
+            print(f"[TTV DB] Loaded {len(TTV_TAG_MAP)} tags from ttv_tags.json.")
+        except Exception as e:
+            print(f"[TTV DB] Failed to load tags.json: {e}")
 
-# Load immediately on import
+# Initial load
 load_tags_from_cache()
+
+def sync_tags(client=None):
+    """Fetch all categories from TTV API (fallback/update)."""
+    global TTV_TAG_MAP
+    # We already have a good list from the user's HTML, 
+    # but we can try to supplement it from API if needed.
+    try:
+        if not client:
+            client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
+            client.get_token()
+        res = client.get_category()
+        if res.get("status") == 1:
+            cats = res.get("category") or res.get("categories") or []
+            new_count = 0
+            for c in cats:
+                cid = str(c.get("id") or "")
+                name = c.get("name") or c.get("category_name")
+                if cid and name and cid not in TTV_TAG_MAP:
+                    TTV_TAG_MAP[cid] = name
+                    new_count += 1
+            if new_count > 0:
+                print(f"[TTV DB] Added {new_count} new tags from API.")
+                tag_cache = Path(__file__).resolve().parent / "ttv_tags.json"
+                with open(tag_cache, "w", encoding="utf-8") as f:
+                    json.dump(TTV_TAG_MAP, f, ensure_ascii=False, indent=2)
+    except: pass
 
 def get_tag_name(tag_id: str) -> str:
     return TTV_TAG_MAP.get(str(tag_id), f"Tag {tag_id}")
 
 def get_tag_list() -> List[Dict[str, str]]:
-    if not TTV_TAG_MAP:
-        sync_tags()
-    # Return sorted list of tags for UI
-    tags = [{"id": k, "name": v} for k, v in TTV_TAG_MAP.items()]
+    """Return list of unique tag names with their first found ID for UI."""
+    # Group by name to avoid duplicates like "Tiên Hiệp (1)" and "Tiên Hiệp (162)"
+    name_to_id = {}
+    for tid, name in TTV_TAG_MAP.items():
+        if name not in name_to_id:
+            name_to_id[name] = tid
+    
+    tags = [{"id": tid, "name": name} for name, tid in name_to_id.items()]
     return sorted(tags, key=lambda x: x["name"])
 
 def init_db():

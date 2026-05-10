@@ -132,10 +132,7 @@ class TTVClient:
         return self._send(req)
 
     def get_category(self) -> Dict[str, Any]:
-        """GET endpoint – returns full list of genres/categories."""
-        req = urllib.request.Request(
-            f"{BASE}/get_category",
-            headers=self._headers(with_token=True),
-            method="GET",
-        )
-        return self._send(req)
+        """POST endpoint – returns full list of genres/categories."""
+        # Some TTV versions use get_list_category and it might be a POST
+        payload = {"appname": "ttv"}
+        return self._post_form_json("get_list_category", "get_list_category", payload, with_token=True)
