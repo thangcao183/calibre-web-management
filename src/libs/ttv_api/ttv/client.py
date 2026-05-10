@@ -106,11 +106,11 @@ class TTVClient:
         }
         return self._post_form_json("get_content_chapter", "get_content_chapter", payload, with_token=True)
 
-    def get_search_story(self, name: str) -> Dict[str, Any]:
+    def get_search_story(self, key: str, delta: str = "0") -> Dict[str, Any]:
         payload = {
-            "name": name,
-            "user_id": self.userid,
-            "hash": hash_get_search_story(name, self.userid),
+            "key": key,
+            "delta": delta,
+            "hash": hash_get_search_story(key, delta),
         }
         return self._post_form_json("get_search_story", "get_search_story", payload, with_token=True)
 

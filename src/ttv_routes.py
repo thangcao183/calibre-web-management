@@ -53,7 +53,7 @@ def api_ttv_search():
         if cache_entry is None or current_time - cache_entry['timestamp'] > CACHE_TTL:
             try:
                 client = _make_client()
-                res = client.get_search_story(name=query)
+                res = client.get_search_story(key=query)
                 if res.get('status') == 1:
                     stories = coerce_story_list(res)
                     story_cache[cache_key] = {'data': stories, 'timestamp': current_time}
