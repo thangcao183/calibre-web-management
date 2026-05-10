@@ -9,7 +9,7 @@ from libs.ttv_api.ttv.client import TTVClient
 from libs.ttv_api.ttv.story import build_story_cover_url
 
 from libs.book_gen import EPUBGenerator
-from libs.text_proc import remove_accents_and_special_chars
+from libs.text_proc import remove_accents_and_special_chars, smart_punctuation
 from libs.kobo_device import kobo_server
 from libs.lib_types import BookInfor
 
@@ -98,11 +98,18 @@ class TTVScraperTask:
 
             # Attempt to extract book info
             self.current_title = self.title or f"TTV Story {self.id_story}"
+            # Format description like ttv.pypy
+            formatted_desc = "\n".join([
+                f"<p>{smart_punctuation(line.strip())}</p>"
+                for line in self.description.split("\n")
+                if line.strip()
+            ])
+
             book_info = BookInfor(
                 title=self.current_title,
                 author=self.author or "Unknown",
                 book_id=int(self.id_story),
-                description=self.description,
+                description=formatted_desc,
                 cover=self.cover_url or build_story_cover_url(""),
                 publisher="TangThuVien",
                 tags=self.tags
@@ -126,14 +133,15 @@ class TTVScraperTask:
                     if content_list and isinstance(content_list[0], dict):
                         html_content = content_list[0].get("content", "")
                         
-                        # Format paragraphs and apply dropcap
+                        # Format paragraphs like ttv.pypy
                         lines = [line.strip() for line in html_content.split("\n") if line.strip()]
                         formatted_content = ""
                         for i, line in enumerate(lines):
+                            p_text = smart_punctuation(line)
                             if i == 0:
-                                formatted_content += f'<p class="line-0">{line}</p>\n'
+                                formatted_content += f'<p class="line-0">{p_text}</p>\n'
                             else:
-                                formatted_content += f'<p>{line}</p>\n'
+                                formatted_content += f'<p>{p_text}</p>\n'
                                 
                         book_content.append({"title": chap_title, "content": formatted_content})
                 
