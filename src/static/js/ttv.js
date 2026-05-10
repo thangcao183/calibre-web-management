@@ -17,6 +17,8 @@
             const res = await fetch('/api/ttv/tags');
             const data = await res.json();
             if (data.success && data.tags) {
+                // Clear existing except first
+                tagSelect.innerHTML = '<option value="none">Tất cả thể loại</option>';
                 data.tags.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.id;

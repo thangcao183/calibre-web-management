@@ -50,33 +50,44 @@ TTV_TAG_MAP = {}  # Will be populated from API
 def sync_tags(client=None):
     """Fetch all categories from TTV and update the local map."""
     global TTV_TAG_MAP
+    print("[TTV DB] Syncing tags from API...")
     try:
         if not client:
             client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
-            client.get_token()
+            token_res = client.get_token()
+            if token_res.get("status") != 1:
+                print(f"[TTV DB] Tag sync failed: Auth error {token_res}")
+                return
         
         res = client.get_category()
         if res.get("status") == 1:
-            cats = res.get("category", [])
+            cats = res.get("category") or []
+            if not cats:
+                # Some API versions return list directly or in 'categories'
+                cats = res.get("categories") or []
+            
             new_map = {}
             for c in cats:
-                cid = str(c.get("id"))
-                name = c.get("name")
+                cid = str(c.get("id") or "")
+                name = c.get("name") or c.get("category_name")
                 if cid and name:
                     new_map[cid] = name
             
             if new_map:
                 TTV_TAG_MAP.update(new_map)
-                print(f"[TTV DB] Synced {len(TTV_TAG_MAP)} tags from API.")
+                print(f"[TTV DB] Successfully synced {len(TTV_TAG_MAP)} tags.")
                 
-                # Save to a local json for persistence if you want
                 tag_cache = DB_PATH.parent / "ttv_tags.json"
                 with open(tag_cache, "w", encoding="utf-8") as f:
                     json.dump(TTV_TAG_MAP, f, ensure_ascii=False, indent=2)
+            else:
+                print(f"[TTV DB] Tag sync: No tags found in response: {res}")
+        else:
+            print(f"[TTV DB] Tag sync API returned status 0: {res.get('message')}")
     except Exception as e:
-        print(f"[TTV DB] Failed to sync tags: {e}")
-        # Try to load from cache
-        load_tags_from_cache()
+        print(f"[TTV DB] Tag sync exception: {e}")
+        import traceback
+        traceback.print_exc()
 
 def load_tags_from_cache():
     global TTV_TAG_MAP
@@ -331,6 +342,10 @@ def start_sync_thread():
 def maybe_auto_sync():
     """Start sync if last sync was more than 24 hours ago or DB is empty."""
     init_db()
+    
+    # Always try to sync tags on startup
+    threading.Thread(target=sync_tags, daemon=True).start()
+
     last = get_last_sync()
     count = get_story_count()
 
