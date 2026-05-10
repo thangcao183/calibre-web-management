@@ -9,29 +9,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const query = searchInput.value.trim();
         const mode = document.getElementById('ttv-mode-select').value;
         const status = document.getElementById('ttv-status-select').value;
-        
+
         resultsContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-secondary">Searching TangThuVien...</div></div>';
-        
+
         try {
             const params = new URLSearchParams();
             if (query) params.append('query', query);
             params.append('mode', mode);
             params.append('finish', status);
-            
+
             const url = `/api/ttv/search?${params.toString()}`;
             const response = await fetch(url);
             const data = await response.json();
-            
+
             if (!data.success) {
                 resultsContainer.innerHTML = `<div class="alert alert-danger">${data.error || 'Unknown error occurred'}</div>`;
                 return;
             }
-            
+
             if (!data.stories || data.stories.length === 0) {
                 resultsContainer.innerHTML = '<div class="text-secondary text-center py-4">No stories found.</div>';
                 return;
             }
-            
+
             renderStories(data.stories);
         } catch (err) {
             console.error('TTV Search Error:', err);
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="card-body p-2 d-flex flex-column h-100">
                                 <h6 class="card-title text-truncate mb-1" title="${story.name}">${story.name}</h6>
                                 <p class="card-text small text-secondary mb-1"><i class="bi bi-person me-1"></i>${story.author}</p>
-                                <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chapters</span> <span class="badge ${story.finish === 'full' ? 'bg-success' : 'bg-info'}">${story.finish || 'ongoing'}</span></p>
+                                <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chapters</span> <span class="badge ${story.finish === '1' ? 'bg-success' : 'bg-info'}">${story.finish || 'ongoing'}</span></p>
                                 <div class="mt-auto">
                                     <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}" data-title="${encodeURIComponent(story.name)}" data-author="${encodeURIComponent(story.author)}" data-cover="${encodeURIComponent(coverUrl)}" data-desc="${encodeURIComponent(story.description || '')}" data-cat="${encodeURIComponent(story.category || '')}">
                                         <i class="bi bi-download me-1"></i> Download
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         html += '</div>';
         resultsContainer.innerHTML = html;
-        
+
         // Attach event listeners to download buttons
         document.querySelectorAll('.btn-ttv-download').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -89,14 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalHtml = btnElement.innerHTML;
         btnElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Queueing...';
         btnElement.disabled = true;
-        
+
         try {
             const response = await fetch('/api/ttv/download', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     id_story: storyId,
                     title: title,
                     author: author,
@@ -106,12 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
             const data = await response.json();
-            
+
             if (data.success) {
                 // Change to success state
                 btnElement.classList.replace('btn-primary', 'btn-success');
                 btnElement.innerHTML = '<i class="bi bi-check2 me-1"></i> Queued';
-                
+
                 // Show notification via sweetalert if available
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('TTV Download Error:', err);
             btnElement.innerHTML = originalHtml;
             btnElement.disabled = false;
-            
+
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',

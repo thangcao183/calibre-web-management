@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body>
     <div class="bg-animation"></div>
 
@@ -111,7 +113,8 @@
                         </div>
                     </div>
                     <div id="instruction-box" class="alert alert-primary mt-3 mb-0 py-2 small">
-                        Mở ứng dụng Kobo client trên thiết bị của bạn. Nếu dùng Direct Connect, nhập Web Server IP và port <b>9090</b>.
+                        Mở ứng dụng Kobo client trên thiết bị của bạn. Nếu dùng Direct Connect, nhập Web Server IP và
+                        port <b>9090</b>.
                     </div>
                 </div>
             </div>
@@ -121,10 +124,13 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h5 class="card-title mb-0"><i class="bi bi-cloud-download me-2"></i>Download New Book</h5>
-                            <span id="download-queue-badge" class="badge text-bg-info" style="display:none;">Queue: 0</span>
+                            <span id="download-queue-badge" class="badge text-bg-info" style="display:none;">Queue:
+                                0</span>
                         </div>
                         <div class="input-group">
-                            <input type="text" id="download-url" class="form-control bg-dark border-secondary text-white" placeholder="Paste URL from supported sites...">
+                            <input type="text" id="download-url"
+                                class="form-control bg-dark border-secondary text-white"
+                                placeholder="Paste URL from supported sites...">
                             <button class="btn btn-success" id="download-btn">
                                 <i class="bi bi-download me-1"></i>Queue Download
                             </button>
@@ -155,70 +161,83 @@
             <!-- Calibre Library -->
             <div class="card glass-card" id="section-library">
                 <div class="card-body">
-                <div id="library-setup-banner" class="alert alert-warning d-none" role="alert">
-                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-                        <div>
-                            <strong>Calibre library not configured.</strong>
-                            <div class="small mt-1" id="library-setup-message">You can auto-detect an existing library or create a new one now.</div>
+                    <div id="library-setup-banner" class="alert alert-warning d-none" role="alert">
+                        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                            <div>
+                                <strong>Calibre library not configured.</strong>
+                                <div class="small mt-1" id="library-setup-message">You can auto-detect an existing
+                                    library or create a new one now.</div>
+                            </div>
+                            <button class="btn btn-sm btn-warning" id="btn-init-library">
+                                <i class="bi bi-folder-plus me-1"></i>Setup Library
+                            </button>
                         </div>
-                        <button class="btn btn-sm btn-warning" id="btn-init-library">
-                            <i class="bi bi-folder-plus me-1"></i>Setup Library
-                        </button>
                     </div>
-                </div>
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-book me-2"></i>Calibre Library
-                        <span class="badge bg-primary ms-2" id="calibre-count"></span>
-                    </h5>
-                    <div class="d-flex flex-wrap align-items-center gap-2">
-                        <input type="text" id="calibre-search" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Filter title / author..." style="width:220px;">
-                        <select id="calibre-format-filter" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:120px;">
-                            <option value="">All formats</option>
-                            <option value="epub">EPUB</option>
-                            <option value="kepub">KEPUB</option>
-                            <option value="pdf">PDF</option>
-                        </select>
-                        <button class="btn btn-sm btn-outline-secondary" id="btn-clear-filters" title="Clear active filters">
-                            <i class="bi bi-funnel"></i> Clear
-                        </button>
-                        <span id="active-filter-badge" class="badge text-bg-info" style="display:none;"></span>
-                        <div class="d-flex align-items-center gap-1">
-                            <select id="saved-filter-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:160px;">
-                                <option value="">Saved filters</option>
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-book me-2"></i>Calibre Library
+                            <span class="badge bg-primary ms-2" id="calibre-count"></span>
+                        </h5>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <input type="text" id="calibre-search"
+                                class="form-control form-control-sm bg-dark border-secondary text-white"
+                                placeholder="Filter title / author..." style="width:220px;">
+                            <select id="calibre-format-filter"
+                                class="form-select form-select-sm bg-dark border-secondary text-white"
+                                style="width:120px;">
+                                <option value="">All formats</option>
+                                <option value="epub">EPUB</option>
+                                <option value="kepub">KEPUB</option>
+                                <option value="pdf">PDF</option>
                             </select>
-                            <button class="btn btn-sm btn-outline-secondary" id="btn-save-filter" title="Save current filter">
-                                <i class="bi bi-bookmark-plus"></i>
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-clear-filters"
+                                title="Clear active filters">
+                                <i class="bi bi-funnel"></i> Clear
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary" id="btn-delete-filter" title="Delete selected filter">
-                                <i class="bi bi-bookmark-x"></i>
+                            <span id="active-filter-badge" class="badge text-bg-info" style="display:none;"></span>
+                            <div class="d-flex align-items-center gap-1">
+                                <select id="saved-filter-select"
+                                    class="form-select form-select-sm bg-dark border-secondary text-white"
+                                    style="width:160px;">
+                                    <option value="">Saved filters</option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-secondary" id="btn-save-filter"
+                                    title="Save current filter">
+                                    <i class="bi bi-bookmark-plus"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="btn-delete-filter"
+                                    title="Delete selected filter">
+                                    <i class="bi bi-bookmark-x"></i>
+                                </button>
+                            </div>
+                            <div class="form-check form-check-inline mb-0">
+                                <input class="form-check-input" type="checkbox" id="auto-sync-cb">
+                                <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
+                            </div>
+                            <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub,.cbz,.mobi,.pdf"
+                                multiple style="display:none;">
+                            <button class="btn btn-sm btn-purple" id="btn-upload-trigger">
+                                <i class="bi bi-plus-lg"></i> Add
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" id="btn-batch-select">
+                                <i class="bi bi-check2-square"></i> Select
+                            </button>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" id="calibre-prev" disabled>&lt;</button>
+                                <span class="btn btn-outline-secondary disabled" id="calibre-page-info"
+                                    style="pointer-events:none;"></span>
+                                <button class="btn btn-outline-secondary" id="calibre-next" disabled>&gt;</button>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" id="btn-refresh-books"><i
+                                    class="bi bi-arrow-clockwise"></i></button>
+                            <button class="btn btn-sm btn-danger" id="eject-btn" style="display:none;">
+                                <i class="bi bi-eject-fill"></i> Eject
                             </button>
                         </div>
-                        <div class="form-check form-check-inline mb-0">
-                            <input class="form-check-input" type="checkbox" id="auto-sync-cb">
-                            <label class="form-check-label small" for="auto-sync-cb">Auto-Sync</label>
-                        </div>
-                        <input type="file" id="upload-ebook-file" accept=".epub,.kepub,.kepub.epub,.cbz,.mobi,.pdf" multiple style="display:none;">
-                        <button class="btn btn-sm btn-purple" id="btn-upload-trigger">
-                            <i class="bi bi-plus-lg"></i> Add
-                        </button>
-                        <button class="btn btn-sm btn-outline-info" id="btn-batch-select">
-                            <i class="bi bi-check2-square"></i> Select
-                        </button>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary" id="calibre-prev" disabled>&lt;</button>
-                            <span class="btn btn-outline-secondary disabled" id="calibre-page-info" style="pointer-events:none;"></span>
-                            <button class="btn btn-outline-secondary" id="calibre-next" disabled>&gt;</button>
-                        </div>
-                        <button class="btn btn-sm btn-outline-secondary" id="btn-refresh-books"><i class="bi bi-arrow-clockwise"></i></button>
-                        <button class="btn btn-sm btn-danger" id="eject-btn" style="display:none;">
-                            <i class="bi bi-eject-fill"></i> Eject
-                        </button>
                     </div>
-                </div>
-                <div class="calibre-grid" id="calibre-book-list">
-                    <div class="text-secondary text-center py-4">Loading Calibre database...</div>
-                </div>
+                    <div class="calibre-grid" id="calibre-book-list">
+                        <div class="text-secondary text-center py-4">Loading Calibre database...</div>
+                    </div>
                 </div>
             </div>
 
@@ -249,13 +268,15 @@
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <div class="small text-secondary">Density Preset</div>
                         <div class="btn-group btn-group-sm" role="group" aria-label="Density preset">
-                            <button type="button" class="btn btn-outline-secondary" id="btn-density-compact">CWA Compact</button>
-                            <button type="button" class="btn btn-outline-secondary" id="btn-density-comfortable">CWA Comfortable</button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-density-compact">CWA
+                                Compact</button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-density-comfortable">CWA
+                                Comfortable</button>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="card glass-card mt-3" id="section-ttv">
                 <div class="card-body">
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -263,7 +284,9 @@
                             <i class="bi bi-search me-2"></i>TTV Browser
                         </h5>
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <select id="ttv-mode-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:160px;">
+                            <select id="ttv-mode-select"
+                                class="form-select form-select-sm bg-dark border-secondary text-white"
+                                style="width:160px;">
                                 <option value="Home">Trang Chủ</option>
                                 <option value="HotMonth">Hot Tháng</option>
                                 <option value="NominatedMonth">Đề Cử Tháng</option>
@@ -273,18 +296,23 @@
                                 <option value="New">Truyện Mới</option>
                                 <option value="Update">Mới Cập Nhật</option>
                             </select>
-                            <select id="ttv-status-select" class="form-select form-select-sm bg-dark border-secondary text-white" style="width:140px;">
+                            <select id="ttv-status-select"
+                                class="form-select form-select-sm bg-dark border-secondary text-white"
+                                style="width:140px;">
                                 <option value="none">Đang ra / Tất cả</option>
-                                <option value="full">Đã Hoàn Thành</option>
+                                <option value="1">Đã Hoàn Thành</option>
                             </select>
-                            <input type="text" id="ttv-search-input" class="form-control form-control-sm bg-dark border-secondary text-white" placeholder="Lọc theo tên..." style="width:200px;">
+                            <input type="text" id="ttv-search-input"
+                                class="form-control form-control-sm bg-dark border-secondary text-white"
+                                placeholder="Lọc theo tên..." style="width:200px;">
                             <button class="btn btn-sm btn-primary" id="btn-ttv-search">
                                 <i class="bi bi-search"></i> Tìm
                             </button>
                         </div>
                     </div>
                     <div class="ttv-results-container" id="ttv-results-container">
-                        <div class="text-secondary text-center py-4">Search for stories to download from TangThuVien.</div>
+                        <div class="text-secondary text-center py-4">Search for stories to download from TangThuVien.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -314,7 +342,8 @@
                                 <div class="mt-2" id="modal-tags"></div>
                                 <div class="mt-3">
                                     <div class="modal-section-label">Description</div>
-                                    <div class="modal-description-box text-light" id="modal-description">Loading metadata...</div>
+                                    <div class="modal-description-box text-light" id="modal-description">Loading
+                                        metadata...</div>
                                 </div>
                             </div>
                         </div>
@@ -371,4 +400,5 @@
     <script src="/static/js/main-init.js"></script>
     <script src="/static/js/ttv.js"></script>
 </body>
+
 </html>
