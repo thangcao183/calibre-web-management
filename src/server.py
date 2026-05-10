@@ -6,6 +6,7 @@ from libs.kobo_device import start_tcp_listener
 from libs.watcher import start_watcher
 from routes import api_bp, reader_bp
 from ttv_routes import ttv_bp
+from libs.ttv_db import maybe_auto_sync
 
 load_dotenv()
 
@@ -50,4 +51,5 @@ def index():
 if __name__ == '__main__':
     start_tcp_listener()
     start_watcher()
+    maybe_auto_sync()
     app.run(host='0.0.0.0', port=8877, debug=False, use_reloader=False)

@@ -28,6 +28,7 @@ nginx.conf
 # Runtime
 app_settings.json
 EBOOK/
+ttv_stories.db
 
 # AI models (large files)
 src/libs/models/

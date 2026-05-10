@@ -1,46 +1,50 @@
-document.addEventListener('DOMContentLoaded', () => {
+// TTV Browser - DB-powered search
+(function () {
     const searchInput = document.getElementById('ttv-search-input');
-    const searchBtn = document.getElementById('btn-ttv-search');
+    const statusSelect = document.getElementById('ttv-status-select');
     const resultsContainer = document.getElementById('ttv-results-container');
+    const dbCountBadge = document.getElementById('ttv-db-count');
+    const syncStatusEl = document.getElementById('ttv-sync-status');
+    const btnSync = document.getElementById('btn-ttv-sync');
 
-    if (!searchInput || !searchBtn || !resultsContainer) return;
+    if (!searchInput || !resultsContainer) return;
 
-    const performSearch = async () => {
+    // Search handler
+    const doSearch = async () => {
         const query = searchInput.value.trim();
-        const mode = document.getElementById('ttv-mode-select').value;
-        const status = document.getElementById('ttv-status-select').value;
+        const finish = statusSelect.value;
 
-        resultsContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-secondary">Searching TangThuVien...</div></div>';
+        resultsContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-secondary">Đang tìm kiếm...</div></div>';
 
         try {
             const params = new URLSearchParams();
             if (query) params.append('query', query);
-            params.append('mode', mode);
-            params.append('finish', status);
+            if (finish && finish !== 'none') params.append('finish', finish);
+            params.append('limit', '200');
 
-            const url = `/api/ttv/search?${params.toString()}`;
-            const response = await fetch(url);
+            const response = await fetch(`/api/ttv/search?${params.toString()}`);
             const data = await response.json();
 
             if (!data.success) {
-                resultsContainer.innerHTML = `<div class="alert alert-danger">${data.error || 'Unknown error occurred'}</div>`;
+                resultsContainer.innerHTML = `<div class="alert alert-danger">${data.error || 'Lỗi không xác định'}</div>`;
                 return;
             }
 
             if (!data.stories || data.stories.length === 0) {
-                resultsContainer.innerHTML = '<div class="text-secondary text-center py-4">No stories found.</div>';
+                resultsContainer.innerHTML = '<div class="text-secondary text-center py-4">Không tìm thấy truyện nào.</div>';
                 return;
             }
 
             renderStories(data.stories);
         } catch (err) {
             console.error('TTV Search Error:', err);
-            resultsContainer.innerHTML = `<div class="alert alert-danger">Failed to fetch stories: ${err.message}</div>`;
+            resultsContainer.innerHTML = `<div class="alert alert-danger">Lỗi: ${err.message}</div>`;
         }
     };
 
     const renderStories = (stories) => {
-        let html = '<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">';
+        let html = `<div class="small text-secondary mb-2">Tìm thấy ${stories.length} truyện</div>`;
+        html += '<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">';
         stories.forEach(story => {
             const coverUrl = story.cover_url || '/static/placeholder.jpg';
             html += `
@@ -53,8 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="col-8">
                             <div class="card-body p-2 d-flex flex-column h-100">
                                 <h6 class="card-title text-truncate mb-1" title="${story.name}">${story.name}</h6>
+                                ${story.china_name ? `<p class="card-text small text-muted mb-1" style="font-size:0.7rem;">${story.china_name}</p>` : ''}
                                 <p class="card-text small text-secondary mb-1"><i class="bi bi-person me-1"></i>${story.author}</p>
-                                <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chapters</span> <span class="badge ${story.finish === '1' ? 'bg-success' : 'bg-info'}">${story.finish || 'ongoing'}</span></p>
+                                <p class="card-text small mb-2"><span class="badge bg-secondary">${story.count_chapter} chương</span> <span class="badge ${story.finish === '1' ? 'bg-success' : 'bg-info'}">${story.finish === '1' ? 'Hoàn thành' : 'Đang ra'}</span>${story.avg_rate ? ` <span class="badge bg-warning text-dark">★ ${story.avg_rate}</span>` : ''}</p>
                                 <div class="mt-auto">
                                     <button class="btn btn-sm btn-primary w-100 btn-ttv-download" data-id="${story.id}" data-title="${encodeURIComponent(story.name)}" data-author="${encodeURIComponent(story.author)}" data-cover="${encodeURIComponent(coverUrl)}" data-desc="${encodeURIComponent(story.description || '')}" data-cat="${encodeURIComponent(story.category || '')}">
                                         <i class="bi bi-download me-1"></i> Download
@@ -69,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         html += '</div>';
         resultsContainer.innerHTML = html;
 
-        // Attach event listeners to download buttons
+        // Attach download handlers
         document.querySelectorAll('.btn-ttv-download').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const btnEl = e.currentTarget;
@@ -87,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const downloadStory = async (storyId, title, author, coverUrl, description, tags, btnElement) => {
         const originalHtml = btnElement.innerHTML;
-        btnElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Queueing...';
+        btnElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xếp hàng...';
         btnElement.disabled = true;
 
         try {
@@ -108,24 +113,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                // Change to success state
                 btnElement.classList.replace('btn-primary', 'btn-success');
-                btnElement.innerHTML = '<i class="bi bi-check2 me-1"></i> Queued';
+                btnElement.innerHTML = '<i class="bi bi-check-circle me-1"></i> Đã xếp hàng';
 
-                // Show notification via sweetalert if available
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
-                        toast: true,
-                        position: 'bottom-end',
                         icon: 'success',
-                        title: 'TTV Download Queued',
-                        text: 'Check the Download/Activity tab for progress.',
+                        title: 'Đã thêm vào hàng đợi',
+                        text: `"${title}" đang được tải xuống.`,
+                        timer: 2000,
                         showConfirmButton: false,
-                        timer: 3000
+                        toast: true,
+                        position: 'top-end'
                     });
                 }
             } else {
-                throw new Error(data.error || 'Failed to queue download');
+                btnElement.innerHTML = originalHtml;
+                btnElement.disabled = false;
+                alert('Lỗi: ' + (data.error || 'Không xác định'));
             }
         } catch (err) {
             console.error('TTV Download Error:', err);
@@ -135,17 +140,71 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: 'Download Failed',
-                    text: err.message
+                    title: 'Lỗi tải truyện',
+                    text: err.message,
                 });
-            } else {
-                alert(`Download failed: ${err.message}`);
             }
         }
     };
 
-    searchBtn.addEventListener('click', performSearch);
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch();
+    // Sync handler
+    let syncPollInterval = null;
+
+    const pollSyncStatus = async () => {
+        try {
+            const res = await fetch('/api/ttv/sync/status');
+            const status = await res.json();
+
+            dbCountBadge.textContent = `${status.total_stories || 0} truyện`;
+
+            if (status.running) {
+                syncStatusEl.style.display = 'block';
+                syncStatusEl.innerHTML = `<i class="bi bi-arrow-repeat spin me-1"></i> ${status.progress || 'Đang đồng bộ...'}`;
+                btnSync.disabled = true;
+                btnSync.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Đang sync...';
+            } else {
+                btnSync.disabled = false;
+                btnSync.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync DB';
+
+                if (status.error) {
+                    syncStatusEl.style.display = 'block';
+                    syncStatusEl.innerHTML = `<i class="bi bi-exclamation-triangle text-danger me-1"></i> Lỗi: ${status.error}`;
+                } else if (status.last_sync) {
+                    syncStatusEl.style.display = 'block';
+                    const dt = new Date(status.last_sync);
+                    syncStatusEl.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i> Đồng bộ lần cuối: ${dt.toLocaleString('vi-VN')} · ${status.total_stories} truyện`;
+                } else {
+                    syncStatusEl.style.display = 'none';
+                }
+
+                if (syncPollInterval) {
+                    clearInterval(syncPollInterval);
+                    syncPollInterval = null;
+                }
+            }
+        } catch (e) {
+            console.error('Sync status error:', e);
+        }
+    };
+
+    btnSync.addEventListener('click', async () => {
+        try {
+            btnSync.disabled = true;
+            btnSync.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Đang bắt đầu...';
+            await fetch('/api/ttv/sync', { method: 'POST' });
+            syncPollInterval = setInterval(pollSyncStatus, 3000);
+            pollSyncStatus();
+        } catch (e) {
+            console.error('Sync start error:', e);
+            btnSync.disabled = false;
+            btnSync.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync DB';
+        }
     });
-});
+
+    // Event listeners
+    document.getElementById('btn-ttv-search').addEventListener('click', doSearch);
+    searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') doSearch(); });
+
+    // On load: check sync status and show DB count
+    pollSyncStatus();
+})();
