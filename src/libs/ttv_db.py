@@ -3,6 +3,10 @@ import json
 import time
 import sqlite3
 import threading
+import urllib.request
+import zipfile
+import tempfile
+import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -92,15 +96,16 @@ def get_tag_name(tag_id: str) -> str:
     return TTV_TAG_MAP.get(str(tag_id), f"Tag {tag_id}")
 
 def get_tag_list() -> List[Dict[str, str]]:
-    """Return list of unique tag names with their first found ID for UI."""
-    # Group by name to avoid duplicates like "Tiên Hiệp (1)" and "Tiên Hiệp (162)"
+    """Return list of unique tag names with their first found ID for UI. Restricted to 1-12."""
     name_to_id = {}
+    valid_ids = {str(i) for i in range(1, 13)}
     for tid, name in TTV_TAG_MAP.items():
-        if name not in name_to_id:
-            name_to_id[name] = tid
+        if tid in valid_ids:
+            if name not in name_to_id:
+                name_to_id[name] = tid
     
     tags = [{"id": tid, "name": name} for name, tid in name_to_id.items()]
-    return sorted(tags, key=lambda x: x["name"])
+    return sorted(tags, key=lambda x: int(x["id"]))
 
 def init_db():
     """Create the stories table if it doesn't exist."""
@@ -154,8 +159,45 @@ def get_story_count() -> int:
     return row["cnt"] if row else 0
 
 
+API_MODES = {"HotMonth", "NominatedMonth", "New", "Update", "Like", "Follow", "CommentCount"}
+
+def _format_api_stories(stories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    results = []
+    for s in stories:
+        results.append({
+            "id": s.get("id"),
+            "name": s.get("name") or "",
+            "author": s.get("author") or "",
+            "count_chapter": s.get("count_chapter") or 0,
+            "finish": "1" if s.get("finish") else "0",
+            "description": s.get("introduce") or "",
+            "category": s.get("tags") or s.get("category") or "",
+            "china_name": s.get("china_name") or "",
+            "avg_rate": s.get("avg_rate") or 0,
+            "nominated_month": s.get("nominated_month") or 0,
+            "convert_month": s.get("convert_month") or 0,
+            "time_fix": s.get("time_fix") or "",
+            "cover_url": build_story_cover_url(s.get("image")),
+        })
+    return results
+
 def search_stories(query: str = "", finish: str = "", tag: str = "", sort: str = "count_chapter", limit: int = 200) -> List[Dict[str, Any]]:
-    """Search local DB for stories matching query and filters."""
+    """Search local DB or proxy to API based on filters."""
+    client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
+    client.get_token()
+
+    if tag and tag != "none":
+        res = client.get_list_story_type(type_id=tag, offset=str(limit), page="0")
+        if res.get("status") == 1:
+            return _format_api_stories(coerce_story_list(res))
+        return []
+
+    if sort in API_MODES:
+        res = client.get_list_story(mode=sort, delta="0", finish=finish if finish != "none" else "none")
+        if res.get("status") == 1:
+            return _format_api_stories(coerce_story_list(res))
+        return []
+
     conn = _get_conn()
     conditions = []
     params = []
@@ -169,15 +211,11 @@ def search_stories(query: str = "", finish: str = "", tag: str = "", sort: str =
         conditions.append("finish = ?")
         params.append(int(finish))
 
-    if tag and tag != "none":
-        # Tags are stored as "162,115". Use LIKE to find the tag ID.
-        # We wrap in commas to ensure we don't match partial IDs (e.g. "1" in "162")
-        # But since they are stored as comma-sep, we check for ",ID," or start/end
-        conditions.append("(',' || tags || ',') LIKE ?")
-        params.append(f"%,{tag},%")
-
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     order = VALID_SORT_COLS.get(sort, "count_chapter DESC")
+    if sort not in VALID_SORT_COLS:
+        order = "count_chapter DESC"
+
     sql = f"SELECT * FROM stories {where} ORDER BY {order} LIMIT ?"
     params.append(limit)
 
@@ -217,7 +255,7 @@ def get_sync_status() -> Dict[str, Any]:
 
 
 def run_full_sync():
-    """Crawl all pages of get_list_story and upsert into SQLite."""
+    """Download stories.zip and bulk update into SQLite."""
     global _sync_status
 
     if not _sync_lock.acquire(blocking=False):
@@ -226,81 +264,60 @@ def run_full_sync():
     try:
         _sync_status["running"] = True
         _sync_status["error"] = ""
-        _sync_status["progress"] = "Authenticating..."
-
-        client = TTVClient(imei="21bab69a53e003ff", token_adr="fcm_ttv::test")
-        token_res = client.get_token()
-        if token_res.get("status") != 1:
-            _sync_status["error"] = "Failed to get TTV token"
-            return
+        _sync_status["progress"] = "Downloading stories.zip..."
 
         init_db()
+
+        tmp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(tmp_dir, "story.zip")
+        urllib.request.urlretrieve('https://nae.vn/ttv/ttv_apiv2/public/get_json_story', zip_path)
+        
+        _sync_status["progress"] = "Extracting stories.zip..."
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            z.extractall(tmp_dir)
+
+        json_path = os.path.join(tmp_dir, "stories.json")
+        if not os.path.exists(json_path):
+            raise Exception("stories.json not found in zip")
+
+        _sync_status["progress"] = "Parsing stories.json..."
+        with open(json_path, 'r', encoding='utf-8-sig') as f:
+            data = json.load(f)
+
+        stories = data.get("story", [])
+        if not stories:
+            raise Exception("No stories found in JSON")
+
+        _sync_status["progress"] = f"Updating database with {len(stories)} stories..."
         conn = _get_conn()
-        total_inserted = 0
-
-        # Crawl both unfinished (none) and finished (full) stories
-        for finish_status in ["none", "full"]:
-            for delta in range(MAX_DELTA):
-                _sync_status["progress"] = f"Fetching {finish_status} page {delta + 1}... ({total_inserted} total)"
-
-                try:
-                    res = client.get_list_story(mode="HotMonth", delta=str(delta), finish=finish_status)
-                except Exception as e:
-                    print(f"[TTV DB] Error on delta={delta}: {e}")
-                    continue
-
-                if res.get("status") != 1:
-                    break
-
-                stories = coerce_story_list(res)
-                if not stories:
-                    break
-
-                for s in stories:
-                    sid = s.get("id")
-                    if not sid:
-                        continue
-                    conn.execute("""
-                        INSERT INTO stories (id, name, author, introduce, china_name, count_chapter, finish, image, tags, avg_rate, nominated_month, convert_month, time_fix, raw_json)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(id) DO UPDATE SET
-                            name=excluded.name,
-                            author=excluded.author,
-                            introduce=excluded.introduce,
-                            china_name=excluded.china_name,
-                            count_chapter=excluded.count_chapter,
-                            finish=excluded.finish,
-                            image=excluded.image,
-                            tags=excluded.tags,
-                            avg_rate=excluded.avg_rate,
-                            nominated_month=excluded.nominated_month,
-                            convert_month=excluded.convert_month,
-                            time_fix=excluded.time_fix,
-                            raw_json=excluded.raw_json
-                    """, (
-                        sid,
-                        s.get("name") or "",
-                        s.get("author") or "",
-                        s.get("introduce") or "",
-                        s.get("china_name") or "",
-                        s.get("count_chapter") or 0,
-                        s.get("finish") or 0,
-                        s.get("image") or "",
-                        s.get("tags") or "",
-                        s.get("avg_rate") or 0,
-                        s.get("nominated_month") or 0,
-                        s.get("convert_month") or 0,
-                        s.get("time_fix") or "",
-                        json.dumps(s, ensure_ascii=False),
-                    ))
-                    total_inserted += 1
-
-            conn.commit()
-
-            # Small delay to avoid hammering the server
-            time.sleep(0.3)
-
-        # Update sync metadata
+        
+        rows = []
+        for s in stories:
+            rows.append((
+                s.get("id"),
+                s.get("name") or "",
+                s.get("author") or "",
+                s.get("china_name") or "",
+                s.get("count_chapter") or 0,
+                s.get("image") or "",
+                json.dumps(s, ensure_ascii=False)
+            ))
+            
+        conn.execute("BEGIN TRANSACTION")
+        conn.executemany("""
+            INSERT INTO stories (id, name, author, china_name, count_chapter, image, raw_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                author=excluded.author,
+                china_name=excluded.china_name,
+                count_chapter=excluded.count_chapter,
+                image=excluded.image,
+                raw_json=excluded.raw_json
+        """, rows)
+        
+        conn.commit()
+        
         now = datetime.now().isoformat()
         conn.execute(
             "INSERT INTO sync_meta (key, value) VALUES ('last_sync', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -309,10 +326,12 @@ def run_full_sync():
         conn.commit()
         conn.close()
 
+        shutil.rmtree(tmp_dir)
+
         _sync_status["last_sync"] = now
-        _sync_status["total_stories"] = get_story_count()
-        _sync_status["progress"] = f"Done! {total_inserted} stories synced."
-        print(f"[TTV DB] Sync complete: {total_inserted} stories.")
+        _sync_status["total_stories"] = len(stories)
+        _sync_status["progress"] = f"Done! {len(stories)} stories synced."
+        print(f"[TTV DB] Sync complete: {len(stories)} stories.")
 
     except Exception as e:
         _sync_status["error"] = str(e)

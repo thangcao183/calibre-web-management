@@ -136,3 +136,14 @@ class TTVClient:
         # Some TTV versions use get_list_category and it might be a POST
         payload = {"appname": "ttv"}
         return self._post_form_json("get_list_category", "get_list_category", payload, with_token=True)
+
+    def get_list_story_type(self, type_id: str, offset: str = "30", page: str = "0") -> Dict[str, Any]:
+        """GET endpoint – returns list of stories by category type."""
+        qs = urllib.parse.urlencode({"offset": offset, "page": page, "type": type_id})
+        req = urllib.request.Request(
+            f"{BASE}/get_list_story_type?{qs}",
+            headers=self._headers(with_token=True),
+            method="GET",
+        )
+        return self._send(req)
+
