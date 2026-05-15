@@ -7,6 +7,7 @@ import urllib.request
 import zipfile
 import tempfile
 import shutil
+import unicodedata
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -135,7 +136,11 @@ def init_db():
         )
     """)
     # Migrate: add columns if missing (for existing DBs)
-    for col, coldef in [("nominated_month", "INTEGER DEFAULT 0"), ("convert_month", "INTEGER DEFAULT 0")]:
+    for col, coldef in [
+        ("nominated_month", "INTEGER DEFAULT 0"), 
+        ("convert_month", "INTEGER DEFAULT 0"),
+        ("search_text", "TEXT DEFAULT ''")
+    ]:
         try:
             conn.execute(f"ALTER TABLE stories ADD COLUMN {col} {coldef}")
         except sqlite3.OperationalError:
@@ -203,9 +208,15 @@ def search_stories(query: str = "", finish: str = "", tag: str = "", sort: str =
     params = []
 
     if query:
-        conditions.append("(name LIKE ? OR author LIKE ? OR china_name LIKE ?)")
-        q = f"%{query}%"
-        params.extend([q, q, q])
+        # Strip accents from query to search against the search_text column
+        norm_query = ""
+        if query:
+            norm_query = unicodedata.normalize('NFKD', query).encode('ASCII', 'ignore').decode('utf-8').lower()
+            
+        conditions.append("(search_text LIKE ? OR name LIKE ? OR author LIKE ? OR china_name LIKE ?)")
+        q_norm = f"%{norm_query}%"
+        q_orig = f"%{query}%"
+        params.extend([q_norm, q_orig, q_orig, q_orig])
 
     if finish and finish != "none":
         conditions.append("finish = ?")
@@ -293,27 +304,34 @@ def run_full_sync():
         
         rows = []
         for s in stories:
+            name = s.get("name") or ""
+            author = s.get("author") or ""
+            search_text_raw = f"{name} {author}"
+            search_text = unicodedata.normalize('NFKD', search_text_raw).encode('ASCII', 'ignore').decode('utf-8').lower()
+
             rows.append((
                 s.get("id"),
-                s.get("name") or "",
-                s.get("author") or "",
+                name,
+                author,
                 s.get("china_name") or "",
                 s.get("count_chapter") or 0,
                 s.get("image") or "",
-                json.dumps(s, ensure_ascii=False)
+                json.dumps(s, ensure_ascii=False),
+                search_text
             ))
             
         conn.execute("BEGIN TRANSACTION")
         conn.executemany("""
-            INSERT INTO stories (id, name, author, china_name, count_chapter, image, raw_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO stories (id, name, author, china_name, count_chapter, image, raw_json, search_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 author=excluded.author,
                 china_name=excluded.china_name,
                 count_chapter=excluded.count_chapter,
                 image=excluded.image,
-                raw_json=excluded.raw_json
+                raw_json=excluded.raw_json,
+                search_text=excluded.search_text
         """, rows)
         
         conn.commit()

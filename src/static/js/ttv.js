@@ -259,8 +259,12 @@
     document.getElementById('btn-ttv-search').addEventListener('click', () => {
         doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none');
     });
-    searchInput.addEventListener('keypress', (e) => { 
-        if (e.key === 'Enter') doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none'); 
+    let searchTimeout = null;
+    searchInput.addEventListener('input', (e) => {
+        if (searchTimeout) clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none');
+        }, 300); // 300ms debounce
     });
 
     if (modeButtons) {
