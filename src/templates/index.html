@@ -285,10 +285,14 @@
                             <span class="badge bg-secondary ms-2" id="ttv-db-count">0 truyện</span>
                         </h5>
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <input type="text" id="ttv-search-input"
-                                class="form-control form-control-sm bg-dark border-secondary text-white"
-                                placeholder="Tìm tên truyện, tác giả..." style="width:300px;">
-                            <button class="btn btn-sm btn-primary" id="btn-ttv-search">
+                            <div class="position-relative">
+                                <input type="text" id="ttv-search-input"
+                                    class="form-control form-control-sm bg-dark border-secondary text-white"
+                                    placeholder="Tìm tên truyện, tác giả..." style="width:300px;" autocomplete="off">
+                                <div id="ttv-search-dropdown" class="dropdown-menu bg-dark border-secondary shadow w-100" style="display:none; position:absolute; top:100%; left:0; z-index:1050; max-height:400px; overflow-y:auto;">
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="btn-ttv-search" style="display:none;">
                                 <i class="bi bi-search"></i> Tìm Kiếm
                             </button>
                             <button class="btn btn-sm btn-outline-warning" id="btn-ttv-sync" title="Đồng bộ DB truyện từ TangThuVien">
