@@ -55,7 +55,7 @@
                         <a class="cwa-nav-item" href="#section-settings" data-section="section-settings">
                             <i class="bi bi-gear"></i><span>Settings</span>
                         </a>
-                        <a class="cwa-nav-item" href="#section-ttv" data-section="section-ttv">
+                        <a class="cwa-nav-item" href="/ttv">
                             <i class="bi bi-search"></i><span>TTV Browser</span>
                         </a>
                     </nav>
@@ -277,93 +277,7 @@
                 </div>
             </div>
 
-            <div class="card glass-card mt-3" id="section-ttv">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-search me-2"></i>TTV Browser
-                            <span class="badge bg-secondary ms-2" id="ttv-db-count">0 truyện</span>
-                        </h5>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <div class="position-relative">
-                                <input type="text" id="ttv-search-input"
-                                    class="form-control form-control-sm bg-dark border-secondary text-white"
-                                    placeholder="Tìm tên truyện, tác giả..." style="width:300px;" autocomplete="off">
-                                <div id="ttv-search-dropdown" class="dropdown-menu bg-dark border-secondary shadow w-100" style="display:none; position:absolute; top:100%; left:0; z-index:1050; max-height:400px; overflow-y:auto;">
-                                </div>
-                            </div>
-                            <button class="btn btn-sm btn-primary" id="btn-ttv-search" style="display:none;">
-                                <i class="bi bi-search"></i> Tìm Kiếm
-                            </button>
-                            <button class="btn btn-sm btn-outline-warning" id="btn-ttv-sync" title="Đồng bộ DB truyện từ TangThuVien">
-                                <i class="bi bi-arrow-repeat"></i> Sync DB
-                            </button>
-                        </div>
-                    </div>
-                    <div id="ttv-sync-status" class="small text-secondary mb-2" style="display:none;"></div>
-                    
-                    <div class="mb-3">
-                        <div class="small text-secondary mb-1 fw-bold">Danh sách nổi bật:</div>
-                        <div class="d-flex flex-wrap gap-2" id="ttv-mode-buttons">
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="HotMonth">Thịnh Hành Tháng</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="NominatedMonth">Đề Cử Tháng</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Update">Mới Cập Nhật</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="New">Truyện Mới</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Like">Yêu Thích</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Follow">Theo Dõi</button>
-                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="CommentCount">Thảo Luận Nhiều</button>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="small text-secondary mb-1 fw-bold">Thể loại:</div>
-                        <div class="d-flex flex-wrap gap-2" id="ttv-category-buttons">
-                            <!-- Populated via JS -->
-                        </div>
-                    </div>
-
-                    <div class="ttv-results-container" id="ttv-results-container">
-                        <div class="text-secondary text-center py-4">Tìm kiếm truyện từ cơ sở dữ liệu TangThuVien.</div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- TTV Story Detail Modal -->
-    <div class="modal fade" id="ttvDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content glass-card border-secondary">
-                <div class="modal-header border-secondary">
-                    <h6 class="modal-title text-truncate" id="ttv-modal-title"></h6>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="modal-book-layout">
-                        <div class="modal-cover-wrap">
-                            <img id="ttv-modal-cover" src="" class="modal-cover-large" alt="">
-                        </div>
-                        <div>
-                            <div id="ttv-modal-china-name" class="small text-muted mb-2"></div>
-                            <div class="mb-2">
-                                <span class="small text-secondary"><i class="bi bi-person me-1"></i></span>
-                                <span id="ttv-modal-author" class="small"></span>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2 mb-2" id="ttv-modal-badges"></div>
-                            <div class="mt-2">
-                                <div class="modal-section-label">Mô tả</div>
-                                <div class="modal-description-box text-light" id="ttv-modal-desc" style="max-height:220px;">Đang tải...</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-primary btn-sm" id="ttv-modal-download-btn">
-                            <i class="bi bi-download me-1"></i> Download EPUB
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            </main>
     </div>
 
     <!-- Book Action Modal (Bootstrap) -->
@@ -445,7 +359,6 @@
     <script src="/static/js/realtime.js"></script>
     <script src="/static/js/ui-bindings.js"></script>
     <script src="/static/js/main-init.js"></script>
-    <script src="/static/js/ttv.js"></script>
-</body>
+    </body>
 
 </html>

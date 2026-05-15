@@ -48,6 +48,13 @@ def index():
         return redirect(url_for('login'))
     return render_template('index.html')
 
+
+@app.route('/ttv')
+def ttv():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    return render_template('ttv.html')
+
 if __name__ == '__main__':
     start_tcp_listener()
     start_watcher()
