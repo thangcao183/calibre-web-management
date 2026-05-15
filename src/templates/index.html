@@ -287,34 +287,9 @@
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             <input type="text" id="ttv-search-input"
                                 class="form-control form-control-sm bg-dark border-secondary text-white"
-                                placeholder="Tìm tên truyện, tác giả..." style="width:250px;">
-                            <select id="ttv-tag-select"
-                                class="form-select form-select-sm bg-dark border-secondary text-white"
-                                style="width:140px;">
-                                <option value="none">Tất cả thể loại</option>
-                            </select>
-                            <select id="ttv-status-select"
-                                class="form-select form-select-sm bg-dark border-secondary text-white"
-                                style="width:150px;">
-                                <option value="none">Tất cả</option>
-                                <option value="1">Đã Hoàn Thành</option>
-                                <option value="0">Đang Ra</option>
-                            </select>
-                            <select id="ttv-sort-select"
-                                class="form-select form-select-sm bg-dark border-secondary text-white"
-                                style="width:160px;">
-                                <option value="count_chapter">Nhiều Chương</option>
-                                <option value="name">Theo Tên A-Z</option>
-                                <option value="HotMonth">Thịnh Hành Tháng</option>
-                                <option value="NominatedMonth">Đề Cử Tháng</option>
-                                <option value="Update">Mới Cập Nhật</option>
-                                <option value="New">Truyện Mới</option>
-                                <option value="Like">Yêu Thích</option>
-                                <option value="Follow">Theo Dõi</option>
-                                <option value="CommentCount">Thảo Luận Nhiều</option>
-                            </select>
+                                placeholder="Tìm tên truyện, tác giả..." style="width:300px;">
                             <button class="btn btn-sm btn-primary" id="btn-ttv-search">
-                                <i class="bi bi-search"></i> Tìm
+                                <i class="bi bi-search"></i> Tìm Kiếm
                             </button>
                             <button class="btn btn-sm btn-outline-warning" id="btn-ttv-sync" title="Đồng bộ DB truyện từ TangThuVien">
                                 <i class="bi bi-arrow-repeat"></i> Sync DB
@@ -322,6 +297,27 @@
                         </div>
                     </div>
                     <div id="ttv-sync-status" class="small text-secondary mb-2" style="display:none;"></div>
+                    
+                    <div class="mb-3">
+                        <div class="small text-secondary mb-1 fw-bold">Danh sách nổi bật:</div>
+                        <div class="d-flex flex-wrap gap-2" id="ttv-mode-buttons">
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="HotMonth">Thịnh Hành Tháng</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="NominatedMonth">Đề Cử Tháng</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Update">Mới Cập Nhật</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="New">Truyện Mới</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Like">Yêu Thích</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="Follow">Theo Dõi</button>
+                            <button class="btn btn-sm btn-outline-info ttv-api-btn" data-sort="CommentCount">Thảo Luận Nhiều</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="small text-secondary mb-1 fw-bold">Thể loại:</div>
+                        <div class="d-flex flex-wrap gap-2" id="ttv-category-buttons">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
                     <div class="ttv-results-container" id="ttv-results-container">
                         <div class="text-secondary text-center py-4">Tìm kiếm truyện từ cơ sở dữ liệu TangThuVien.</div>
                     </div>

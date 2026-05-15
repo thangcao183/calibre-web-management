@@ -1,13 +1,12 @@
 // TTV Browser - DB-powered search with sort & detail modal
 (function () {
     const searchInput = document.getElementById('ttv-search-input');
-    const statusSelect = document.getElementById('ttv-status-select');
-    const tagSelect = document.getElementById('ttv-tag-select');
-    const sortSelect = document.getElementById('ttv-sort-select');
     const resultsContainer = document.getElementById('ttv-results-container');
     const dbCountBadge = document.getElementById('ttv-db-count');
     const syncStatusEl = document.getElementById('ttv-sync-status');
     const btnSync = document.getElementById('btn-ttv-sync');
+    const categoryContainer = document.getElementById('ttv-category-buttons');
+    const modeButtons = document.querySelectorAll('.ttv-api-btn');
 
     if (!searchInput || !resultsContainer) return;
 
@@ -17,29 +16,24 @@
             const res = await fetch('/api/ttv/tags');
             const data = await res.json();
             if (data.success && data.tags) {
-                // Clear existing except first
-                tagSelect.innerHTML = '<option value="none">Tất cả thể loại</option>';
+                categoryContainer.innerHTML = '';
                 data.tags.forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t.id;
-                    opt.textContent = t.name;
-                    tagSelect.appendChild(opt);
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-sm btn-outline-secondary';
+                    btn.textContent = t.name;
+                    btn.addEventListener('click', () => doSearch('', t.id, 'count_chapter', 'none'));
+                    categoryContainer.appendChild(btn);
                 });
             }
         } catch (e) { console.error('Load tags error:', e); }
     };
-    loadTags();
+    if (categoryContainer) loadTags();
 
     // Keep last fetched stories for detail modal
     let lastStories = [];
 
     // Search handler
-    const doSearch = async () => {
-        const query = searchInput.value.trim();
-        const finish = statusSelect.value;
-        const tag = tagSelect.value;
-        const sort = sortSelect.value;
-
+    const doSearch = async (query = '', tag = 'none', sort = 'count_chapter', finish = 'none') => {
         resultsContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-secondary">Đang tìm kiếm...</div></div>';
 
         try {
@@ -262,8 +256,20 @@
     });
 
     // Event listeners
-    document.getElementById('btn-ttv-search').addEventListener('click', doSearch);
-    searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') doSearch(); });
+    document.getElementById('btn-ttv-search').addEventListener('click', () => {
+        doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none');
+    });
+    searchInput.addEventListener('keypress', (e) => { 
+        if (e.key === 'Enter') doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none'); 
+    });
+
+    if (modeButtons) {
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                doSearch('', 'none', btn.getAttribute('data-sort'), 'none');
+            });
+        });
+    }
 
     // On load: check sync status
     pollSyncStatus();
