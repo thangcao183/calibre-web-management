@@ -255,16 +255,82 @@
         }
     });
 
+    const searchDropdown = document.getElementById('ttv-search-dropdown');
+
+    const renderDropdownStories = (stories) => {
+        if (!stories || stories.length === 0) {
+            searchDropdown.innerHTML = '<div class="p-3 text-secondary text-center small">Không tìm thấy truyện.</div>';
+            searchDropdown.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+        // limit to 10 for dropdown
+        stories.slice(0, 10).forEach((story, idx) => {
+            const coverUrl = story.cover_url || '/static/placeholder.jpg';
+            html += `
+            <a href="#" class="dropdown-item d-flex align-items-center gap-2 py-2 border-bottom border-secondary ttv-dropdown-item" data-story-idx="${idx}">
+                <img src="${coverUrl}" style="width:40px; height:55px; object-fit:cover; border-radius:4px;">
+                <div class="overflow-hidden">
+                    <div class="text-truncate fw-bold text-white mb-1" style="font-size:0.9rem;">${story.name}</div>
+                    <div class="small text-secondary text-truncate"><i class="bi bi-person"></i> ${story.author} • <span class="badge bg-secondary">${story.count_chapter} c</span></div>
+                </div>
+            </a>`;
+        });
+        
+        searchDropdown.innerHTML = html;
+        searchDropdown.style.display = 'block';
+
+        searchDropdown.querySelectorAll('.ttv-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const idx = parseInt(item.getAttribute('data-story-idx'));
+                openDetailModal(lastStories[idx]);
+                searchDropdown.style.display = 'none';
+            });
+        });
+    };
+
+    const doLiveSearch = async (query) => {
+        if (!query) {
+            searchDropdown.style.display = 'none';
+            return;
+        }
+        
+        searchDropdown.innerHTML = '<div class="p-3 text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+        searchDropdown.style.display = 'block';
+
+        try {
+            const response = await fetch(`/api/ttv/search?query=${encodeURIComponent(query)}&limit=10`);
+            const data = await response.json();
+            if (data.success) {
+                lastStories = data.stories || [];
+                renderDropdownStories(lastStories);
+            }
+        } catch (err) {
+            console.error('Live search error:', err);
+        }
+    };
+
     // Event listeners
-    document.getElementById('btn-ttv-search').addEventListener('click', () => {
-        doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none');
-    });
     let searchTimeout = null;
     searchInput.addEventListener('input', (e) => {
         if (searchTimeout) clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            doSearch(searchInput.value.trim(), 'none', 'count_chapter', 'none');
-        }, 300); // 300ms debounce
+            doLiveSearch(searchInput.value.trim());
+        }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (searchDropdown && !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+            searchDropdown.style.display = 'none';
+        }
+    });
+
+    searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim().length > 0) {
+            doLiveSearch(searchInput.value.trim());
+        }
     });
 
     if (modeButtons) {
